@@ -35,8 +35,10 @@ export function FooterSection() {
                 <Image
                   src={logoSrc}
                   alt="Kortix Logo"
-                  width={122}
-                  height={22}
+                  width={800}
+                  height={175}
+                  className="h-[27px] w-auto"
+                  style={{ width: 'auto' }}
                   priority
                 />
               </Link>

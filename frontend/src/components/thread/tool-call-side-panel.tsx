@@ -1,21 +1,27 @@
 'use client';
 
 import { Project } from '@/lib/api';
-import { getToolIcon, getUserFriendlyToolName } from '@/components/thread/utils';
+import { getUserFriendlyToolName } from '@/components/thread/utils';
 import React from 'react';
 import { Slider } from '@/components/ui/slider';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiMessageType } from '@/components/thread/types';
-import { CircleDashed, X, ChevronLeft, ChevronRight, Computer, Radio, Maximize2, Minimize2, Copy, Check } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import {
+  CircleDashed,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Computer,
+  Minimize2,
+} from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { ToolView } from './tool-views/wrapper';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast } from 'sonner';
 import {
   Drawer,
   DrawerContent,
+  DrawerDescription,
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer';
@@ -25,6 +31,9 @@ export interface ToolCallInput {
     content?: string;
     name?: string;
     timestamp?: string;
+    toolCallId?: string;
+    toolIndex?: number;
+    statusType?: string;
   };
   toolResult?: {
     content?: string;
@@ -70,7 +79,7 @@ const CONTENT_LAYOUT_ID = 'tool-panel-content';
 
 // Helper function to generate the computer title
 const getComputerTitle = (agentName?: string): string => {
-  return agentName ? `${agentName}'s Computer` : "FuFanManus's Computer";
+  return agentName ? `${agentName}'s Computer` : "AlexManus's Computer";
 };
 
 // Reusable header component for the tool panel
@@ -222,29 +231,42 @@ export function ToolCallSidePanel({
   onFileClick,
   disableInitialAnimation,
 }: ToolCallSidePanelProps) {
-  // 渲染计数调试
-  const renderCount = React.useRef(0);
-  renderCount.current += 1;
-  
-  console.log('🎨 [ToolCallSidePanel] RENDER:', {
-    renderCount: renderCount.current,
-    isOpen,
-    toolCallsLength: toolCalls.length,
-    currentIndex,
-    agentStatus,
-    timestamp: Date.now()
-  });
-
-  const [dots, setDots] = React.useState('');
   const [internalIndex, setInternalIndex] = React.useState(0);
   const [navigationMode, setNavigationMode] = React.useState<'live' | 'manual'>('live');
   const [toolCallSnapshots, setToolCallSnapshots] = React.useState<ToolCallSnapshot[]>([]);
   const [isInitialized, setIsInitialized] = React.useState(false);
 
-  // Add copy functionality state
-  const [isCopyingContent, setIsCopyingContent] = React.useState(false);
-
   const isMobile = useIsMobile();
+
+  const assistantWithoutToolsCount = React.useMemo(() => {
+    if (!messages || messages.length === 0) {
+      return 0;
+    }
+    return messages.filter((message) => {
+      if (message.type !== 'assistant' || !message.content) {
+        return false;
+      }
+      try {
+        const parsed = JSON.parse(message.content);
+        if (parsed && typeof parsed === 'object' && 'tool_calls' in parsed) {
+          return parsed.tool_calls === null;
+        }
+        if (
+          parsed &&
+          typeof parsed === 'object' &&
+          typeof parsed.content === 'string'
+        ) {
+          const nested = JSON.parse(parsed.content);
+          if (nested && typeof nested === 'object' && 'tool_calls' in nested) {
+            return nested.tool_calls === null;
+          }
+        }
+      } catch {
+        // ignore parse errors
+      }
+      return false;
+    }).length;
+  }, [messages]);
 
   const handleClose = React.useCallback(() => {
     onClose();
@@ -252,8 +274,24 @@ export function ToolCallSidePanel({
 
   // 大幅简化逻辑，只在必要时更新
   React.useEffect(() => {
+    const filteredToolCalls = toolCalls
+      .map((toolCall) => {
+        const rawName = (toolCall.assistantCall?.name || '').trim();
+        if (rawName) {
+          return toolCall;
+        }
+        return {
+          ...toolCall,
+          assistantCall: {
+            ...toolCall.assistantCall,
+            name: 'unknown-tool',
+          },
+        };
+      })
+      .filter((toolCall) => !!toolCall.assistantCall.name);
+
     // 只在 toolCalls 长度变化时重新生成快照
-    const newSnapshots = toolCalls.map((toolCall, index) => ({
+    const newSnapshots = filteredToolCalls.map((toolCall, index) => ({
       id: `${index}-${toolCall.assistantCall.timestamp || 'no-timestamp'}`,
       toolCall,
       index,
@@ -267,7 +305,7 @@ export function ToolCallSidePanel({
       setInternalIndex(newSnapshots.length - 1);
       setIsInitialized(true);
     }
-  }, [toolCalls.length]); // 只依赖长度
+  }, [toolCalls, isInitialized]); // 依赖完整数组，确保过滤条件变化可生效
 
   // 简化的索引同步，完全避免 toolCallSnapshots 依赖
   React.useEffect(() => {
@@ -285,24 +323,15 @@ export function ToolCallSidePanel({
   );
   const totalCompletedCalls = completedToolCalls.length;
 
-  let displayToolCall = currentToolCall;
+  const displayToolCall = currentToolCall;
   let displayIndex = safeInternalIndex;
   let displayTotalCalls = totalCalls;
 
   const isCurrentToolStreaming = currentToolCall?.toolResult?.content === 'STREAMING';
-  
-  console.log('🔍 [ToolCallSidePanel] Display logic:', {
-    isCurrentToolStreaming,
-    totalCompletedCalls,
-    currentToolName: currentToolCall?.assistantCall?.name,
-    safeInternalIndex,
-    totalCalls
-  });
-  
+
   // 🚨 修复：如果当前工具正在streaming，应该显示streaming状态而不是切换到已完成项
   if (isCurrentToolStreaming) {
     // 保持显示当前streaming的工具，这样TaskView可以正确显示loading状态
-    console.log('✅ [ToolCallSidePanel] Keeping streaming tool for display:', currentToolCall?.assistantCall?.name);
     // displayToolCall 保持为 currentToolCall（默认值）
   } else if (!isCurrentToolStreaming) {
     const completedIndex = completedToolCalls.findIndex(snapshot => snapshot.id === currentSnapshot?.id);
@@ -312,10 +341,6 @@ export function ToolCallSidePanel({
     }
   }
 
-  const currentToolName = displayToolCall?.assistantCall?.name || 'Tool Call';
-  const CurrentToolIcon = getToolIcon(
-    currentToolCall?.assistantCall?.name || 'unknown',
-  );
   const isStreaming = displayToolCall?.toolResult?.content === 'STREAMING';
 
   // Extract actual success value from tool content with fallbacks
@@ -346,54 +371,6 @@ export function ToolCallSidePanel({
 
   const isSuccess = isStreaming ? true : getActualSuccess(displayToolCall);
 
-  // Copy functions
-  const copyToClipboard = React.useCallback(async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch (err) {
-      console.error('Failed to copy text: ', err);
-      return false;
-    }
-  }, []);
-
-  const handleCopyContent = React.useCallback(async () => {
-    const toolContent = displayToolCall?.toolResult?.content;
-    if (!toolContent || toolContent === 'STREAMING') return;
-
-    // Try to extract file content from tool result
-    let fileContent = '';
-
-    // If the tool result is JSON, try to extract file content
-    try {
-      const parsed = JSON.parse(toolContent);
-      if (parsed.content && typeof parsed.content === 'string') {
-        fileContent = parsed.content;
-      } else if (parsed.file_content && typeof parsed.file_content === 'string') {
-        fileContent = parsed.file_content;
-      } else if (parsed.result && typeof parsed.result === 'string') {
-        fileContent = parsed.result;
-      } else if (parsed.toolOutput && typeof parsed.toolOutput === 'string') {
-        fileContent = parsed.toolOutput;
-      } else {
-        // If no string content found, stringify the object
-        fileContent = JSON.stringify(parsed, null, 2);
-      }
-    } catch (e) {
-      // If it's not JSON, use the content as is
-      fileContent = typeof toolContent === 'string' ? toolContent : JSON.stringify(toolContent, null, 2);
-    }
-
-    setIsCopyingContent(true);
-    const success = await copyToClipboard(fileContent);
-    if (success) {
-      toast.success('File content copied to clipboard');
-    } else {
-      toast.error('Failed to copy file content');
-    }
-    setTimeout(() => setIsCopyingContent(false), 500);
-  }, [displayToolCall?.toolResult?.content, copyToClipboard]);
-
   const internalNavigate = React.useCallback((newIndex: number, source: string = 'internal') => {
     if (newIndex < 0 || newIndex >= totalCalls) return;
 
@@ -409,7 +386,7 @@ export function ToolCallSidePanel({
     if (source === 'user_explicit') {
       onNavigate(newIndex);
     }
-  }, [internalIndex, totalCalls, onNavigate]);
+  }, [totalCalls, onNavigate]);
 
   const isLiveMode = navigationMode === 'live';
   const showJumpToLive = navigationMode === 'manual' && agentStatus === 'running';
@@ -584,16 +561,15 @@ export function ToolCallSidePanel({
   }, [externalNavigateToIndex, totalCalls, internalNavigate]);
 
   React.useEffect(() => {
-    if (!isStreaming) return;
-    const interval = setInterval(() => {
-      setDots((prev) => {
-        if (prev === '...') return '';
-        return prev + '.';
-      });
-    }, 500);
+    if (!isMobile || !isOpen) {
+      return;
+    }
 
-    return () => clearInterval(interval);
-  }, [isStreaming]);
+    const active = document.activeElement;
+    if (active instanceof HTMLElement) {
+      active.blur();
+    }
+  }, [isMobile, isOpen]);
 
   if (!isOpen) {
     return null;
@@ -604,6 +580,9 @@ export function ToolCallSidePanel({
       return (
         <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
           <DrawerContent className="h-[85vh]">
+            <DrawerDescription className="sr-only">
+              Tool activity details panel
+            </DrawerDescription>
             <PanelHeader 
               agentName={agentName}
               onClose={handleClose}
@@ -652,6 +631,70 @@ export function ToolCallSidePanel({
 
   const renderContent = () => {
     if (!displayToolCall && toolCallSnapshots.length === 0) {
+      const isAgentBusy =
+        agentStatus === 'running' || agentStatus === 'connecting';
+
+      if (isAgentBusy) {
+        return (
+          <div className="flex flex-col h-full">
+            {!isMobile && (
+              <PanelHeader
+                agentName={agentName}
+                onClose={handleClose}
+                isStreaming={true}
+              />
+            )}
+            <div className="flex flex-col items-center justify-center flex-1 p-8">
+              <div className="flex flex-col items-center space-y-4 max-w-sm text-center">
+                <div className="relative">
+                  <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                    <CircleDashed className="h-8 w-8 text-blue-500 dark:text-blue-400 animate-spin" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
+                    Preparing tool activity
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    Deep search is running. Tool calls will appear here as soon as they are emitted.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (assistantWithoutToolsCount > 0) {
+        return (
+          <div className="flex flex-col h-full">
+            {!isMobile && (
+              <PanelHeader
+                agentName={agentName}
+                onClose={handleClose}
+              />
+            )}
+            <div className="flex flex-col items-center justify-center flex-1 p-8">
+              <div className="flex flex-col items-center space-y-4 max-w-sm text-center">
+                <div className="relative">
+                  <div className="w-16 h-16 bg-amber-50 dark:bg-amber-900/20 rounded-full flex items-center justify-center">
+                    <Computer className="h-8 w-8 text-amber-500 dark:text-amber-400" />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100">
+                    No executable tool calls
+                  </h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                    This run returned assistant text only (`tool_calls: null`), so there is no tool activity timeline to display.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       return (
         <div className="flex flex-col h-full">
           {!isMobile && (
@@ -757,6 +800,7 @@ export function ToolCallSidePanel({
         project={project}
         messages={messages}
         agentStatus={agentStatus}
+        agentName={agentName}
         currentIndex={displayIndex}
         totalCalls={displayTotalCalls}
         onFileClick={onFileClick}
@@ -788,6 +832,9 @@ export function ToolCallSidePanel({
     return (
       <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DrawerContent className="h-[85vh]">
+          <DrawerDescription className="sr-only">
+            Tool activity details panel
+          </DrawerDescription>
           <PanelHeader 
             agentName={agentName}
             onClose={handleClose}
@@ -912,3 +959,4 @@ export function ToolCallSidePanel({
     </AnimatePresence>
   );
 }
+

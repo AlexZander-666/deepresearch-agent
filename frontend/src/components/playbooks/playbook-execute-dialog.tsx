@@ -114,7 +114,7 @@ export const PlaybookExecuteDialog: React.FC<PlaybookExecuteDialogProps> = ({
         } catch (e) {
             toast.error('Failed to start playbook');
         }
-    }, [agentId, isActive, isValid, onStarted, playbook?.id, playbook?.name, values, executeMutation, router]);
+    }, [agentId, isActive, isValid, onStarted, playbook, values, executeMutation, router]);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -229,5 +229,4 @@ export const PlaybookExecuteDialog: React.FC<PlaybookExecuteDialogProps> = ({
         </Dialog>
     );
 };
-
 

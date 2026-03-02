@@ -71,6 +71,7 @@ export const ComposioToolsManager: React.FC<ComposioToolsManagerProps> = ({
         <DialogHeader className="p-6 pb-4 border-b flex-shrink-0">
           <div className="flex items-center gap-3">
             {iconData?.icon_url || appLogo ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Toolkit icon URLs are provider-controlled and may come from arbitrary domains.
               <img 
                 src={iconData?.icon_url || appLogo} 
                 alt={currentProfile?.toolkit_name} 

@@ -1,0 +1,41 @@
+﻿{
+    "thread_id":  "79471dcd-b875-4ccb-b041-3596d232b429",
+    "total_messages":  115,
+    "thread_run_ids_count":  11,
+    "tool_summary":  {
+                         "update_tasks":  {
+                                              "completed":  1,
+                                              "failed":  0,
+                                              "error":  0
+                                          },
+                         "view_tasks":  {
+                                            "completed":  1,
+                                            "failed":  0,
+                                            "error":  0
+                                        },
+                         "create_tasks":  {
+                                              "completed":  1,
+                                              "failed":  4,
+                                              "error":  0
+                                          },
+                         "web_search":  {
+                                            "completed":  1,
+                                            "failed":  0,
+                                            "error":  0
+                                        },
+                         "screenshot":  {
+                                            "completed":  0,
+                                            "failed":  4,
+                                            "error":  0
+                                        },
+                         "scrape_webpage":  {
+                                                "completed":  0,
+                                                "failed":  1,
+                                                "error":  0
+                                            }
+                     },
+    "assistant_count":  28,
+    "final_assistant_synthetic":  null,
+    "final_assistant_low_value":  false,
+    "final_assistant_preview":  "æç°å¨éè¦ç»§ç»­å¤çä¹åçç ç©¶è¯·æ±ãè®©æå\u0085åå»ºä¸ä¸ªä»»å¡åè¡¨æ¥ç³»ç»æ§å°ç ç©¶2026å¹´ç¾å½AI Agentå¸åºã\n\n"
+}

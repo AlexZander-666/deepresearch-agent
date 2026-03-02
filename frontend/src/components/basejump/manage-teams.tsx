@@ -16,7 +16,7 @@ export default async function ManageTeams() {
 
   const { data } = await supabaseClient.rpc('get_accounts');
 
-  const teams: any[] = data?.filter(
+  const teams: any[] = (data ?? []).filter(
     (team: any) => team.personal_account === false,
   );
 

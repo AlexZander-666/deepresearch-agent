@@ -159,7 +159,7 @@ export const FloatingToolPreview: React.FC<FloatingToolPreviewProps> = ({
                   )} />
                   <span className="text-xs text-muted-foreground truncate">
                     {isStreaming
-                      ? `${agentName || 'FuFanManus'} is working...`
+                      ? `${agentName || 'AlexManus'} is working...`
                       : isSuccess
                         ? "Success"
                         : "Failed"

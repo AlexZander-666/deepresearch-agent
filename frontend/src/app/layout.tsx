@@ -11,7 +11,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import Script from 'next/script';
 import { PostHogIdentify } from '@/components/posthog-identify';
 import '@/lib/polyfills'; // Load polyfills early
-import { TOLT_REFERRAL_ID } from '@/lib/env';
+import { isTelemetryEnabled, TOLT_REFERRAL_ID } from '@/lib/env';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     template: `%s - ${siteConfig.name}`,
   },
   description:
-    'FuFanManus 是一个通用智能体系统，帮助你轻松完成现实世界的任务。通过自然对话，FuFanManus 成为你的数字伴侣，进行研究、数据分析和日常挑战。',
+    'AlexManus 是一个通用智能体系统，帮助你轻松完成现实世界的任务。通过自然对话，AlexManus 成为你的数字伴侣，进行研究、数据分析和日常挑战。',
   keywords: [
     'AI',
     'artificial intelligence',
@@ -46,13 +46,13 @@ export const metadata: Metadata = {
     'research',
     'data analysis',
   ],
-  authors: [{ name: 'FuFanManus', url: 'https://fufanmanus.com' }],
+  authors: [{ name: 'AlexManus', url: 'https://AlexManus.com' }],
   creator:
-    'FuFanManus',
+    'AlexManus',
   publisher:
-    'FuFanManus',
+    'AlexManus',
   category: 'Technology',
-  applicationName: 'FuFanManus',
+  applicationName: 'AlexManus',
   formatDetection: {
     telephone: false,
     email: false,
@@ -67,17 +67,17 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'FuFanManus - Open Source Generalist AI Worker',
+    title: 'AlexManus - Open Source Generalist AI Worker',
     description:
-      'FuFanManus is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
+      'AlexManus is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
     url: siteConfig.url,
-    siteName: 'FuFanManus',
+    siteName: 'AlexManus',
     images: [
       {
         url: '/banner.png',
         width: 1200,
         height: 630,
-        alt: 'FuFanManus - Open Source Generalist AI Worker',
+        alt: 'AlexManus - Open Source Generalist AI Worker',
         type: 'image/png',
       },
     ],
@@ -86,17 +86,17 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'FuFanManus - Open Source Generalist AI Worker',
+    title: 'AlexManus - Open Source Generalist AI Worker',
     description:
-      'FuFanManus is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
-    creator: '@fufanmanus',
-    site: '@fufanmanus',
+      'AlexManus is a fully open source AI assistant that helps you accomplish real-world tasks with ease through natural conversation.',
+    creator: '@AlexManus',
+    site: '@AlexManus',
     images: [
       {
         url: '/banner.png',
         width: 1200,
         height: 630,
-        alt: 'FuFanManus - Open Source Generalist AI Worker',
+        alt: 'AlexManus - Open Source Generalist AI Worker',
       },
     ],
   },
@@ -115,17 +115,20 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const telemetryEnabled = isTelemetryEnabled();
+
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
-        {/* Google Tag Manager */}
-        <Script id="google-tag-manager" strategy="afterInteractive">
-          {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-          new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-          'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-          })(window,document,'script','dataLayer','GTM-PCHSN4M2');`}
-        </Script>
+        {telemetryEnabled ? (
+          <Script id="google-tag-manager" strategy="afterInteractive">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','GTM-PCHSN4M2');`}
+          </Script>
+        ) : null}
         {TOLT_REFERRAL_ID ? (
           <Script
             async
@@ -138,15 +141,16 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans bg-background`}
       >
-        <noscript>
-          <iframe
-            src="https://www.googletagmanager.com/ns.html?id=GTM-PCHSN4M2"
-            height="0"
-            width="0"
-            style={{ display: 'none', visibility: 'hidden' }}
-          />
-        </noscript>
-        {/* End Google Tag Manager (noscript) */}
+        {telemetryEnabled ? (
+          <noscript>
+            <iframe
+              src="https://www.googletagmanager.com/ns.html?id=GTM-PCHSN4M2"
+              height="0"
+              width="0"
+              style={{ display: 'none', visibility: 'hidden' }}
+            />
+          </noscript>
+        ) : null}
 
         <ThemeProvider
           attribute="class"
@@ -158,9 +162,13 @@ export default function RootLayout({
             {children}
             <Toaster />
           </Providers>
-          <Analytics />
-          <GoogleAnalytics gaId="G-6ETJFB3PT3" />
-          <SpeedInsights />
+          {telemetryEnabled ? (
+            <>
+              <Analytics />
+              <GoogleAnalytics gaId="G-6ETJFB3PT3" />
+              <SpeedInsights />
+            </>
+          ) : null}
           <PostHogIdentify />
         </ThemeProvider>
       </body>

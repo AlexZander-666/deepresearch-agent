@@ -1,4 +1,6 @@
 // 本地 PostgreSQL 数据库客户端
+import { debugLog } from '../client-logger';
+
 interface DatabaseConfig {
   host: string;
   port: number;
@@ -115,9 +117,17 @@ class DatabaseClient {
           error: null
         };
       }
+
+      // 对于 get_accounts，返回空列表避免本地环境告警噪音
+      if (functionName === 'get_accounts') {
+        return {
+          data: [],
+          error: null,
+        };
+      }
       
       // 其他RPC调用的通用处理
-      console.warn(`RPC function '${functionName}' not implemented, returning null`);
+      debugLog(`RPC function '${functionName}' not implemented, returning null`);
       return { data: null, error: null };
     } catch (error) {
       console.error(`RPC error for '${functionName}':`, error);

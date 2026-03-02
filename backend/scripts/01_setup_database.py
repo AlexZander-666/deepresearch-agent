@@ -53,7 +53,7 @@ async def test_database_connection():
     print("\nPlease enter database connection information:")
     host = input("Host address (default: localhost): ").strip() or "localhost"
     port = input("Port (default: 5432): ").strip() or "5432"
-    database = input("Database name (default: fufanmanus): ").strip() or "fufanmanus"
+    database = input("Database name (default: AlexManus): ").strip() or "AlexManus"
     username = input("Username (default: postgres): ").strip() or "postgres"
     password = input("Password: ").strip()
     

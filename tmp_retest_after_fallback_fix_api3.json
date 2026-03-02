@@ -1,0 +1,54 @@
+[
+  {
+    "case": "deep",
+    "thread_id": "04aac13f-09e6-4038-b1bd-24c68b9cea00",
+    "run_id": "1594a70d-d5d2-401a-9507-474fdb46242e",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:18:49.111653+00:00",
+    "scoped_message_count": 17,
+    "thread_run_ids": [
+      "971f9157-a62b-4c22-bfbc-7de3922c012b",
+      "8f3a6185-912e-4d9d-a2f1-a06b46cb99c8",
+      "cd1381b5-8553-4022-a629-3850208276b6"
+    ],
+    "tool_summary": {},
+    "assistant_count": 4,
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- Search - Microsoft Bing\n- Search - Microsoft Bing\n- Search - Microsoft Bing\n\n三、工具执行记录\n- web_search：提取到 5 条候选来源。\n- computer-use/sandbox screenshot：本次未捕获到可用截图证据。\n\n四、参考来源\n1. Search - Microsoft Bing - https://sg.bing.com/\n2. Search - Microsoft Bing - https://www.bing.com/\n3. Search - Microsoft Bing - https://uk.bing.com/\n4. Bing Images - https://www.bing.com/images/\n5. Micr"
+  },
+  {
+    "case": "browser",
+    "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+    "run_id": "2f55bb9e-d473-4d6d-b207-a7a57f340bd2",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:20:36.420240+00:00",
+    "scoped_message_count": 5,
+    "thread_run_ids": [
+      "f9664929-763f-4177-a58e-04fcc53848aa"
+    ],
+    "tool_summary": {},
+    "assistant_count": 1,
+    "synthetic_kinds_in_scope": [],
+    "final_assistant_synthetic": null,
+    "final_assistant_preview": "我将使用浏览器工具来访问 https://example.com。让我使用 `browser_navigate_to` 工具：\n\n\n\n现在我已经成功导航到 https://example.com。页面已经加载完成。让我为您返回页面标题和状态说明。\n\n根据页面截图显示，页面已成功加载，标题显示为 \"Example Domain\"。\n\n**页面标题：** Example Domain\n\n**状态说明：** 页面已正常加载，显示的是一个用于文档示例的标准域名网页。\n\n如果您需要我执行其他浏览器操作或提取更多信息，请告诉我！"
+  },
+  {
+    "case": "sandbox",
+    "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+    "run_id": "b9a87a81-fad1-4cd1-9ade-d1783a1ce938",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:20:44.841451+00:00",
+    "scoped_message_count": 5,
+    "thread_run_ids": [
+      "42b5a797-151a-4e09-8503-e304842ef898"
+    ],
+    "tool_summary": {},
+    "assistant_count": 1,
+    "synthetic_kinds_in_scope": [],
+    "final_assistant_synthetic": null,
+    "final_assistant_preview": "我将直接截图并摘要屏幕内容。\n\n\n\n**屏幕摘要：**\nLinux GNOME桌面环境，顶部菜单栏显示\"Applications\"、\"Places\"和时间，左侧排列浏览器和工具图标，桌面背景为灰色渐变，界面干净未打开任何应用程序窗口。"
+  }
+]

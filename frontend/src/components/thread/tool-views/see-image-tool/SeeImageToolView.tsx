@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 import React, { useState, useEffect } from 'react';
 import { Image as ImageIcon, ImageOff, CheckCircle, AlertTriangle, Loader2, Download, ZoomIn, ZoomOut, ExternalLink, Check } from 'lucide-react';
 import { ToolViewProps } from '../types';
@@ -27,6 +28,8 @@ function SafeImage({ src, alt, filePath, className }: { src: string; alt: string
   const { session } = useAuth();
 
   useEffect(() => {
+    let cleanupUrl: string | null = null;
+
     const setupAuthenticatedImage = async () => {
       if (src.includes('/sandboxes/') && src.includes('/files/content')) {
         try {
@@ -42,6 +45,7 @@ function SafeImage({ src, alt, filePath, className }: { src: string; alt: string
 
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
+          cleanupUrl = url;
           setImgSrc(url);
         } catch (err) {
           console.error('Error loading authenticated image:', err);
@@ -57,8 +61,8 @@ function SafeImage({ src, alt, filePath, className }: { src: string; alt: string
     setAttempts(0);
 
     return () => {
-      if (imgSrc && imgSrc.startsWith('blob:')) {
-        URL.revokeObjectURL(imgSrc);
+      if (cleanupUrl && cleanupUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(cleanupUrl);
       }
     };
   }, [src, session?.access_token]);
@@ -390,3 +394,4 @@ export function SeeImageToolView({
     </Card>
   );
 } 
+

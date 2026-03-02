@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { CircleDashed, CheckCircle, AlertTriangle } from 'lucide-react';
 import { UnifiedMessage, ParsedContent, ParsedMetadata } from '@/components/thread/types';
@@ -5,6 +6,7 @@ import { FileAttachmentGrid } from '@/components/thread/file-attachment';
 import { useFilePreloader } from '@/hooks/react-query/files';
 import { useAuth } from '@/components/AuthProvider';
 import { Project } from '@/lib/api';
+import { debugLog } from '@/lib/client-logger';
 import {
     extractPrimaryParam,
     getToolIcon,
@@ -303,7 +305,7 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
     project,
     debugMode = false,
     isPreviewMode = false,
-    agentName = 'FuFanManus',
+    agentName = 'AlexManus',
     agentAvatar = <KortixLogo size={16} />,
     emptyStateComponent,
     threadMetadata,
@@ -428,7 +430,7 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
         // Fallback: if this is a Suna default agent, always show KortixLogo
         if (isSunaDefaultAgent) {
             return {
-                name: agentName || 'FuFanManus',
+                name: agentName || 'AlexManus',
                 avatar: (
                     <div className="h-5 w-5 flex items-center justify-center rounded text-xs">
                         <KortixLogo size={16} />
@@ -438,7 +440,7 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
         }
 
         return {
-            name: agentName || 'FuFanManus',
+            name: agentName || 'AlexManus',
             avatar: agentAvatar
         };
     }, [threadMetadata, displayMessages, agentName, agentAvatar, agentMetadata, agentData]);
@@ -511,7 +513,7 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
     const shouldShowEmpty = displayMessages.length === 0 && !streamingTextContent && !streamingToolCall &&
         !streamingText && !currentToolCall && agentStatus === 'idle';
     
-    console.log('🔍 [ThreadContent] 最终状态:', {
+    debugLog('🔍 [ThreadContent] 最终状态:', {
         displayMessagesLength: displayMessages.length,
         shouldShowEmpty,
         agentStatus
@@ -835,15 +837,21 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
                                                                         const msgKey = message.message_id || `submsg-assistant-${msgIndex}`;
 
                                                                         // 🔧 检查是否包含 tool_calls
-                                                                        const hasToolCalls = parsedContent.tool_calls && Array.isArray(parsedContent.tool_calls) && parsedContent.tool_calls.length > 0;
+                                                                        const validToolCalls = Array.isArray(parsedContent.tool_calls)
+                                                                            ? parsedContent.tool_calls.filter((toolCall: any) => {
+                                                                                const rawName = (toolCall?.function?.name || toolCall?.name || '').trim();
+                                                                                return rawName.length > 0;
+                                                                            })
+                                                                            : [];
+                                                                        const hasToolCalls = validToolCalls.length > 0;
                                                                         const hasTextContent = parsedContent.content && parsedContent.content.trim() !== '';
                                                                         
                                                                         // 如果只有 tool_calls 没有文本内容，渲染工具调用卡片
                                                                         if (hasToolCalls && !hasTextContent) {
-                                                                            console.log('🔧 [ThreadContent] Rendering tool call cards for:', message.message_id, parsedContent.tool_calls);
+                                                                            debugLog('🔧 [ThreadContent] Rendering tool call cards for:', message.message_id, validToolCalls);
                                                                             
                                                                             // 为每个工具调用渲染卡片
-                                                                            parsedContent.tool_calls.forEach((toolCall: any, toolIndex: number) => {
+                                                                            validToolCalls.forEach((toolCall: any, toolIndex: number) => {
                                                                                 const toolName = toolCall.function?.name || toolCall.name || 'unknown-tool';
                                                                                 const toolArgs = toolCall.function?.arguments || toolCall.arguments || '{}';
                                                                                 
@@ -1151,3 +1159,5 @@ export const ThreadContent: React.FC<ThreadContentProps> = ({
 };
 
 export default ThreadContent; 
+
+

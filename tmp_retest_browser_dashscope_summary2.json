@@ -1,0 +1,28 @@
+{
+  "case": "browser",
+  "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+  "run_id": "25278f9e-baa7-4c02-9e7e-b096613d68a2",
+  "status": "completed",
+  "elapsed_s": 27.5,
+  "anchor_created_at": "2026-03-02T06:15:18.906613+00:00",
+  "scoped_message_count": 33,
+  "thread_run_ids": [
+    "7ccd365a-777f-4058-b27d-32c06887045d",
+    "d6782270-1534-48bc-a642-4d40eba630d3",
+    "58b12161-427f-4dd4-b5c4-923294e8929d",
+    "84e9dbe2-1980-46bb-976c-6de2778cb561"
+  ],
+  "tool_summary": {
+    "browser_navigate_to": {
+      "completed": 0,
+      "failed": 3,
+      "error": 0
+    }
+  },
+  "assistant_count": 8,
+  "synthetic_kinds_in_scope": [
+    "web_search_fallback_summary"
+  ],
+  "final_assistant_synthetic": "web_search_fallback_summary",
+  "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- Puppeteer Web Scraping in 2026: basic to advanced i\n- Quick Guide to Web Automation with Python - Neura AI Blog\n- Prerender pages in Chrome for instant "
+}

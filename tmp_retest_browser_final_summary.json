@@ -1,0 +1,14 @@
+﻿{
+    "thread_id":  "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+    "total_messages":  33,
+    "tool_summary":  {
+                         "browser_navigate_to":  {
+                                                     "completed":  0,
+                                                     "failed":  2,
+                                                     "error":  0
+                                                 }
+                     },
+    "assistant_count":  8,
+    "final_assistant_synthetic":  "stream_error_fallback_summary",
+    "final_assistant_preview":  "æ¬è½®æ·±åº¦æç´¢å¨æ¨¡åä¾åºåè´¦æ·ç¶ææ ¡éªé¶æ®µè¢«æç»ï¼å·²è§¦åèªå¨æ¢å¤ä¸æ¶ææµç¨ã\n\nä¸ãå¼å¸¸æ¦è§\n- å½åæ¨¡åï¼deepseek-siliconflow\n- èªå¨æ¢å¤å°è¯ï¼1/2\n- éè¯¯ä¿¡æ¯ï¼litell"
+}

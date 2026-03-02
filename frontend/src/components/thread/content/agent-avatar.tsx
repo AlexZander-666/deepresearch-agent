@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 'use client';
 
 import React from 'react';
@@ -16,7 +17,7 @@ export const AgentAvatar: React.FC<AgentAvatarProps> = ({
   agentId, 
   size = 16, 
   className = "", 
-  fallbackName = "FuFanManus" 
+  fallbackName = "AlexManus" 
 }) => {
   const { data: agent, isLoading } = useAgent(agentId || '');
 
@@ -60,7 +61,7 @@ interface AgentNameProps {
 
 export const AgentName: React.FC<AgentNameProps> = ({ 
   agentId, 
-  fallback = "FuFanManus" 
+  fallback = "AlexManus" 
 }) => {
   const { data: agent, isLoading } = useAgent(agentId || '');
 

@@ -30,6 +30,7 @@ export const ComposioAppCard: React.FC<ComposioAppCardProps> = ({
         <div className="flex items-center gap-4 mb-4">
           <div className="relative h-12 w-12 rounded-xl overflow-hidden bg-muted flex-shrink-0">
             {app.logo && !imageError ? (
+              // eslint-disable-next-line @next/next/no-img-element -- App logos come from third-party providers and are not guaranteed in Next.js image allowlist.
               <img
                 src={app.logo}
                 alt={`${app.name} logo`}

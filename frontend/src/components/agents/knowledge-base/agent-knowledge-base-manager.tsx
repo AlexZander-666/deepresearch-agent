@@ -315,7 +315,7 @@ export const AgentKnowledgeBaseManager = ({ agentId, agentName }: AgentKnowledge
     }
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
@@ -323,7 +323,7 @@ export const AgentKnowledgeBaseManager = ({ agentId, agentName }: AgentKnowledge
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       handleFileUpload(e.dataTransfer.files);
     }
-  }, []);
+  };
 
   const handleOpenAddDialog = (tab: 'manual' | 'files' | 'repo' = 'manual') => {
     setAddDialogTab(tab);

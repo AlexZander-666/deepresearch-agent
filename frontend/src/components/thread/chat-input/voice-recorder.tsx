@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Mic, Square, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,6 +29,12 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
 
     const transcriptionMutation = useTranscription();
 
+    const stopRecording = useCallback(() => {
+        if (mediaRecorderRef.current && state === 'recording') {
+            mediaRecorderRef.current.stop();
+        }
+    }, [state]);
+
     // Auto-stop recording after 15 minutes
     useEffect(() => {
         if (state === 'recording') {
@@ -49,7 +55,7 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
                 clearTimeout(maxTimeoutRef.current);
             }
         };
-    }, [state]);
+    }, [state, stopRecording]);
 
     const startRecording = async () => {
         try {
@@ -98,12 +104,6 @@ export const VoiceRecorder: React.FC<VoiceRecorderProps> = ({
         } catch (error) {
             console.error('Error starting recording:', error);
             setState('idle');
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && state === 'recording') {
-            mediaRecorderRef.current.stop();
         }
     };
 

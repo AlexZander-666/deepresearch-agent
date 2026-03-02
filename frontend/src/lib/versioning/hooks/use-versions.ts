@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { container } from '../infrastructure/container';
 import { useVersionStore } from '../stores/version-store';
 import { CreateVersionRequest, UpdateVersionDetailsRequest } from '../types';
+import { useFeatureFlag } from '@/lib/feature-flags';
 
 const versionService = container.getVersionService();
 
@@ -16,6 +17,7 @@ const versionKeys = {
 };
 
 export const useAgentVersions = (agentId: string) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
   const { setVersions, setIsLoading, setError } = useVersionStore();
   return useQuery({
     queryKey: versionKeys.list(agentId),
@@ -34,12 +36,13 @@ export const useAgentVersions = (agentId: string) => {
         setIsLoading(false);
       }
     },
-    enabled: !!agentId,
+    enabled: !!agentId && customAgentsEnabled && !customAgentsLoading,
     staleTime: 30000,
   });
 };
 
 export const useAgentVersion = (agentId: string, versionId: string | null | undefined) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
   const { setCurrentVersion } = useVersionStore();
   return useQuery({
     queryKey: versionKeys.detail(agentId, versionId!),
@@ -48,7 +51,7 @@ export const useAgentVersion = (agentId: string, versionId: string | null | unde
       setCurrentVersion(version);
       return version;
     },
-    enabled: !!agentId && !!versionId,
+    enabled: !!agentId && !!versionId && customAgentsEnabled && !customAgentsLoading,
     staleTime: 30000,
   });
 };

@@ -16,6 +16,7 @@ export const McpServerCard: React.FC<McpServerCardProps> = ({ server, onClick })
     >
       <div className="flex items-start gap-3 flex-shrink-0">
         {server.iconUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- MCP registry icons are remote and not guaranteed to be in Next.js image allowlist.
           <img src={server.iconUrl} alt={server.displayName || server.name} className="w-6 h-6 rounded" />
         ) : (
           <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center">

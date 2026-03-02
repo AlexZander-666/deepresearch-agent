@@ -34,6 +34,8 @@ import { ListPresentationTemplatesToolView } from '../ListPresentationTemplatesT
 import { SheetsToolView } from '../sheets-tools/sheets-tool-view';
 import { GetProjectStructureView } from '../web-dev/GetProjectStructureView';
 import { ImageEditGenerateToolView } from '../image-edit-generate-tool/ImageEditGenerateToolView';
+import { ComputerPrivacyToolView } from '../ComputerPrivacyToolView';
+import { shouldUseAlexManusComputerPrivacyView } from './alexmanus-privacy';
 
 
 export type ToolViewComponent = React.ComponentType<ToolViewProps>;
@@ -197,5 +199,14 @@ export function useToolView(toolName: string): ToolViewComponent {
 
 export const ToolView = React.memo(function ToolView({ name = 'default', ...props }: ToolViewProps) {
   const ToolViewComponent = useToolView(name);
+  const shouldUsePrivacyComputerView = shouldUseAlexManusComputerPrivacyView(
+    props.agentName,
+    name,
+  );
+
+  if (shouldUsePrivacyComputerView) {
+    return <ComputerPrivacyToolView name={name} {...props} />;
+  }
+
   return <ToolViewComponent name={name} {...props} />;
 });

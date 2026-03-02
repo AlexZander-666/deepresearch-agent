@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -560,7 +561,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       setIsOpen(false);
       setTimeout(() => setIsOpen(true), 10);
     }
-  }, [customModels, modelOptions]);
+  }, [customModels, modelOptions, isOpen]);
 
   // Don't render dropdown until after hydration to prevent ID mismatches
   if (!mounted) {

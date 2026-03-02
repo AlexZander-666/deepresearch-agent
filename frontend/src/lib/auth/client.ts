@@ -1,10 +1,11 @@
 // 新的认证客户端 - 替代Supabase认证
 import { BACKEND_URL } from '@/lib/env';
+import { debugLog } from '@/lib/client-logger';
+import { resolveSessionExpiryUnixSeconds } from './session-expiry';
 
 const API_URL = BACKEND_URL || 'http://localhost:8000/api';
 
-// 调试信息
-console.log('🔧 Auth Client API_URL:', API_URL);
+debugLog('Auth Client API_URL:', API_URL);
 
 export interface User {
   id: string;
@@ -50,8 +51,7 @@ class AuthClient {
   // 登录
   async signIn(credentials: LoginCredentials): Promise<AuthResponse> {
     try {
-      console.log('🚀 发送登录请求到:', `${API_URL}/auth/login`);
-      console.log('📝 登录数据:', credentials);
+      debugLog('Auth signIn request:', `${API_URL}/auth/login`, credentials);
       
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
@@ -75,7 +75,11 @@ class AuthClient {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         user: data.user,
-        expires_at: data.expires_at
+        expires_at: resolveSessionExpiryUnixSeconds({
+          expires_at: data.expires_at,
+          expires_in: data.expires_in,
+          access_token: data.access_token,
+        }),
       };
 
       this.setSession(session);
@@ -98,8 +102,7 @@ class AuthClient {
   // 注册
   async signUp(credentials: RegisterCredentials): Promise<AuthResponse> {
     try {
-      console.log('🚀 发送注册请求到:', `${API_URL}/auth/register`);
-      console.log('📝 注册数据:', credentials);
+      debugLog('Auth signUp request:', `${API_URL}/auth/register`, credentials);
       
       const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
@@ -109,11 +112,11 @@ class AuthClient {
         body: JSON.stringify(credentials),
       });
 
-      console.log('📡 响应状态:', response.status);
-      console.log('📡 响应头:', Object.fromEntries(response.headers.entries()));
+      debugLog('Auth signUp status:', response.status);
+      debugLog('Auth signUp headers:', Object.fromEntries(response.headers.entries()));
       
       const data = await response.json();
-      console.log('📡 响应数据:', data);
+      debugLog('Auth signUp response:', data);
 
       if (!response.ok) {
         return {
@@ -174,6 +177,14 @@ class AuthClient {
         data: { session: null },
         error: null
       };
+    }
+
+    const resolvedExpiresAt = resolveSessionExpiryUnixSeconds(this.session);
+    if (resolvedExpiresAt && resolvedExpiresAt !== this.session.expires_at) {
+      this.setSession({
+        ...this.session,
+        expires_at: resolvedExpiresAt,
+      });
     }
 
     // 检查token是否即将过期，如果是则刷新
@@ -265,7 +276,11 @@ class AuthClient {
         access_token: data.access_token,
         refresh_token: data.refresh_token || this.session.refresh_token,
         user: data.user || this.session.user,
-        expires_at: data.expires_at
+        expires_at: resolveSessionExpiryUnixSeconds({
+          expires_at: data.expires_at,
+          expires_in: data.expires_in,
+          access_token: data.access_token,
+        }),
       };
 
       this.setSession(newSession);
@@ -334,7 +349,11 @@ class AuthClient {
     try {
       const storedSession = localStorage.getItem('auth_session');
       if (storedSession) {
-        this.session = JSON.parse(storedSession);
+        const parsedSession = JSON.parse(storedSession) as Session;
+        this.session = {
+          ...parsedSession,
+          expires_at: resolveSessionExpiryUnixSeconds(parsedSession),
+        };
       }
     } catch (error) {
       console.warn('Failed to load session from storage:', error);

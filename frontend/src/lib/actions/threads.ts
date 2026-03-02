@@ -8,22 +8,32 @@ export const generateThreadName = async (message: string): Promise<string> => {
         ? message.trim().substring(0, 47) + '...'
         : message.trim();
 
-    // OpenAI API key should be stored in an environment variable
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey =
+      process.env.QWEN_API_KEY ||
+      process.env.DEEPSEEK_API_KEY ||
+      process.env.OPENAI_API_KEY;
+    const apiBase =
+      process.env.QWEN_API_BASE ||
+      process.env.DEEPSEEK_API_BASE ||
+      'https://dashscope.aliyuncs.com/compatible-mode/v1';
+    const modelName =
+      process.env.QWEN_TEXT_MODEL ||
+      process.env.MODEL_TO_USE ||
+      'deepseek-v3.2';
 
     if (!apiKey) {
-      console.error('OpenAI API key not found');
+      console.error('LLM API key not found');
       return defaultName;
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: modelName,
         messages: [
           {
             role: 'system',
@@ -42,7 +52,7 @@ export const generateThreadName = async (message: string): Promise<string> => {
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('OpenAI API error:', errorData);
+      console.error('LLM API error:', errorData);
       return defaultName;
     }
 

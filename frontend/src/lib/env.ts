@@ -37,6 +37,32 @@ export const getPublicEnv = (
 
 export const DEFAULT_BACKEND_URL = 'http://localhost:8000/api';
 
+export const isLocalEnvMode = (
+  env: NodeJS.ProcessEnv = process.env,
+): boolean => {
+  const envMode = getPublicEnv('NEXT_PUBLIC_ENV_MODE', '', env).toLowerCase();
+  return envMode === 'local' || envMode === 'development';
+};
+
+export const isClientDebugLoggingEnabled = (
+  env: NodeJS.ProcessEnv = process.env,
+): boolean => {
+  return getPublicEnv('NEXT_PUBLIC_DEBUG_LOGS', '', env).toLowerCase() === 'true';
+};
+
+export const isTelemetryEnabled = (
+  env: NodeJS.ProcessEnv = process.env,
+): boolean => {
+  const explicit = getPublicEnv('NEXT_PUBLIC_ENABLE_ANALYTICS', '', env).toLowerCase();
+  if (explicit === 'true') {
+    return true;
+  }
+  if (explicit === 'false') {
+    return false;
+  }
+  return !isLocalEnvMode(env);
+};
+
 export const getBackendUrl = (
   env: NodeJS.ProcessEnv = process.env,
   fallback = DEFAULT_BACKEND_URL,
@@ -78,3 +104,4 @@ export const getServerBackendUrl = (
 export const BACKEND_URL = getBackendUrl();
 export const POSTHOG_KEY = getPublicEnv('NEXT_PUBLIC_POSTHOG_KEY');
 export const TOLT_REFERRAL_ID = getPublicEnv('NEXT_PUBLIC_TOLT_REFERRAL_ID');
+export const CLIENT_DEBUG_LOGS_ENABLED = isClientDebugLoggingEnabled();

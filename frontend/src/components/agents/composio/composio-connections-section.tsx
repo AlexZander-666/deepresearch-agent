@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 'use client';
 
 import React, { useState, useMemo } from 'react';

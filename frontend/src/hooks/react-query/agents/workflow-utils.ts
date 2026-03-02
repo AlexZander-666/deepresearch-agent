@@ -2,6 +2,43 @@ import { createClient } from "@/lib/supabase/client";
 import { isFlagEnabled } from "@/lib/feature-flags";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+const CUSTOM_AGENTS_DISABLED_ERROR = 'Custom agents is not enabled';
+
+const getErrorMessage = (value: unknown, depth = 0): string => {
+  if (depth > 6 || value == null) return '';
+  if (typeof value === 'string') return value;
+  if (value instanceof Error) return getErrorMessage(value.message, depth + 1);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nested = getErrorMessage(item, depth + 1);
+      if (nested) return nested;
+    }
+    return '';
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const candidates = [
+      record.message,
+      record.detail,
+      record.error,
+      record.error_description,
+      record.reason,
+    ];
+    for (const candidate of candidates) {
+      const nested = getErrorMessage(candidate, depth + 1);
+      if (nested) return nested;
+    }
+  }
+  return '';
+};
+
+const isCustomAgentsDisabledError = (value: unknown): boolean => {
+  const message = getErrorMessage(value).toLowerCase();
+  return message.includes('custom agents') && (message.includes('disabled') || message.includes('not enabled'));
+};
+
+const getHttpErrorMessage = (status: number, statusText: string, errorData: unknown): string =>
+  getErrorMessage(errorData) || `HTTP ${status}: ${statusText}`;
 
 export interface WorkflowStep {
   id: string;
@@ -146,7 +183,7 @@ export const getAgentWorkflows = async (agentId: string): Promise<AgentWorkflow[
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      return [];
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -165,12 +202,18 @@ export const getAgentWorkflows = async (agentId: string): Promise<AgentWorkflow[
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      if (isCustomAgentsDisabledError(errorData)) {
+        return [];
+      }
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const workflows = await response.json();
     return workflows;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      return [];
+    }
     console.error('Error fetching workflows:', err);
     throw err;
   }
@@ -180,7 +223,7 @@ export const createAgentWorkflow = async (agentId: string, workflow: CreateWorkf
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -200,12 +243,15 @@ export const createAgentWorkflow = async (agentId: string, workflow: CreateWorkf
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const result = await response.json();
     return result;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error creating workflow:', err);
     throw err;
   }
@@ -219,7 +265,7 @@ export const updateAgentWorkflow = async (
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -239,12 +285,15 @@ export const updateAgentWorkflow = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const result = await response.json();
     return result;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error updating workflow:', err);
     throw err;
   }
@@ -254,7 +303,7 @@ export const deleteAgentWorkflow = async (agentId: string, workflowId: string): 
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -273,9 +322,12 @@ export const deleteAgentWorkflow = async (agentId: string, workflowId: string): 
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error deleting workflow:', err);
     throw err;
   }
@@ -295,7 +347,7 @@ export const executeWorkflow = async (
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -315,12 +367,15 @@ export const executeWorkflow = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const result = await response.json();
     return result;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error executing workflow:', err);
     throw err;
   }
@@ -334,7 +389,7 @@ export const getWorkflowExecutions = async (
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      return [];
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -353,13 +408,19 @@ export const getWorkflowExecutions = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+      if (isCustomAgentsDisabledError(errorData)) {
+        return [];
+      }
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const executions = await response.json();
     return executions;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      return [];
+    }
     console.error('Error fetching workflow executions:', err);
     throw err;
   }
-}; 
+};

@@ -221,7 +221,7 @@ export default function RealStreamTestPage() {
         console.log(toolCalls.length > 0 ? "🎉 SUCCESS: No infinite loop detected!" : "⚠️ Still processing...");
       }, 5000);
     }
-  }, [toolCalls.length]);
+  }, [messages.length, toolCalls]);
 
   return (
     <div className="h-screen">

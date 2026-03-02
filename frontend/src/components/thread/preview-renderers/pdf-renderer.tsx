@@ -23,7 +23,7 @@ const PdfDocument = ({ url, containerWidth }: PdfDocumentProps) => {
             'pdfjs-dist/build/pdf.worker.min.mjs',
             import.meta.url,
         ).toString();
-    }, [pdfjs]);
+    }, []);
 
     return (
         <Document file={url} className="shadow-none">
@@ -82,5 +82,4 @@ export function PdfRenderer({ url, className }: PdfRendererProps) {
         </div>
     );
 }
-
 

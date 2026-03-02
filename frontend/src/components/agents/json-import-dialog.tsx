@@ -185,7 +185,7 @@ export const JsonImportDialog: React.FC<JsonImportDialogProps> = ({
         }
       }
     );
-  }, [jsonText, instanceName, profileMappings, customMcpConfigs, onSuccess, onOpenChange]); // Remove mutation from dependencies
+  }, [jsonText, instanceName, profileMappings, customMcpConfigs, onSuccess, onOpenChange, analyzeJsonMutation, importJsonMutation]);
 
   const handleProfileSelect = useCallback((qualifiedName: string, profileId: string) => {
     setProfileMappings(prev => ({
@@ -231,7 +231,7 @@ export const JsonImportDialog: React.FC<JsonImportDialogProps> = ({
         }
       }
     );
-  }, [analysis, jsonText, instanceName, profileMappings, customMcpConfigs, onSuccess, onOpenChange]); // Remove mutation from dependencies
+  }, [analysis, jsonText, instanceName, profileMappings, customMcpConfigs, onSuccess, onOpenChange, importJsonMutation]);
 
   const currentStepData = useMemo(() => setupSteps[currentStep], [setupSteps, currentStep]);
   

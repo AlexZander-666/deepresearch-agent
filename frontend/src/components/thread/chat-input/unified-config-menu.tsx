@@ -30,6 +30,7 @@ import { NewAgentDialog } from '@/components/agents/new-agent-dialog';
 import { useAgentWorkflows } from '@/hooks/react-query/agents/use-agent-workflows';
 import { PlaybookExecuteDialog } from '@/components/playbooks/playbook-execute-dialog';
 import { AgentAvatar } from '@/components/thread/content/agent-avatar';
+import type { ModelProvider } from '@/lib/model-provider';
 
 type UnifiedConfigMenuProps = {
     isLoggedIn?: boolean;
@@ -41,6 +42,8 @@ type UnifiedConfigMenuProps = {
     // Model
     selectedModel: string;
     onModelChange: (modelId: string) => void;
+    selectedProvider: ModelProvider;
+    onProviderChange: (provider: ModelProvider) => void;
     modelOptions: ModelOption[];
     subscriptionStatus: SubscriptionStatus;
     canAccessModel: (modelId: string) => boolean;
@@ -54,6 +57,8 @@ const LoggedInMenu: React.FC<UnifiedConfigMenuProps> = ({
     onAgentSelect,
     selectedModel,
     onModelChange,
+    selectedProvider,
+    onProviderChange,
     modelOptions,
     canAccessModel,
     subscriptionStatus,
@@ -71,7 +76,7 @@ const LoggedInMenu: React.FC<UnifiedConfigMenuProps> = ({
     const [customModels, setCustomModels] = useState<Array<{ id: string; label: string }>>([]);
 
     const { data: agentsResponse } = useAgents({}, { enabled: isLoggedIn });
-    const agents: any[] = agentsResponse?.agents || [];
+    const agents: any[] = useMemo(() => agentsResponse?.agents || [], [agentsResponse?.agents]);
 
 
 
@@ -156,7 +161,7 @@ const LoggedInMenu: React.FC<UnifiedConfigMenuProps> = ({
         if (already) return topModels;
         const merged = [...topModels, selectedInAll];
         return merged.slice(0, 4);
-    }, [topModels, selectedModel, modelOptions, /* combinedModels is computed later but stable across re-renders */]);
+    }, [topModels, selectedModel, modelOptions, combinedModels]);
 
     const handleAgentClick = (agentId: string | undefined) => {
         onAgentSelect?.(agentId);
@@ -169,14 +174,12 @@ const LoggedInMenu: React.FC<UnifiedConfigMenuProps> = ({
         setIsOpen(false);
     };
 
+    const handleProviderClick = (provider: ModelProvider) => {
+        onProviderChange(provider);
+    };
+
     const handleUpgradeClick = () => {
-        if (onUpgradeRequest) {
-            onUpgradeRequest();
-            return;
-        }
-        if (typeof window !== 'undefined') {
-            window.open('/dashboard/settings/billing', '_blank');
-        }
+        onUpgradeRequest?.();
     };
 
     const openAddCustomModelDialog = (e?: React.MouseEvent) => {
@@ -247,7 +250,7 @@ const LoggedInMenu: React.FC<UnifiedConfigMenuProps> = ({
                                     {renderAgentIcon(displayAgent)}
                                 </div>
                                 <span className="truncate text-sm">
-                                    {displayAgent?.name || 'FuFanManus'}
+                                    {displayAgent?.name || 'AlexManus'}
                                 </span>
                                 <ChevronDown size={12} className="opacity-60" />
                             </div>
@@ -321,6 +324,24 @@ const LoggedInMenu: React.FC<UnifiedConfigMenuProps> = ({
 
                     {/* Models */}
                     <div className="px-1.5">
+                        <div className="px-3 py-1 text-[11px] font-medium text-muted-foreground">Provider</div>
+                        <DropdownMenuItem
+                            className="text-sm px-3 py-2 mx-0 my-0.5 flex items-center justify-between cursor-pointer rounded-lg"
+                            onClick={() => handleProviderClick('dashscope')}
+                        >
+                            <span className="truncate">DashScope</span>
+                            {selectedProvider === 'dashscope' && <Check className="h-4 w-4 text-blue-500" />}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                            className="text-sm px-3 py-2 mx-0 my-0.5 flex items-center justify-between cursor-pointer rounded-lg"
+                            onClick={() => handleProviderClick('siliconflow')}
+                        >
+                            <span className="truncate">SiliconFlow</span>
+                            {selectedProvider === 'siliconflow' && <Check className="h-4 w-4 text-blue-500" />}
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator className="my-1" />
+
                         <div className="px-3 py-1 text-[11px] font-medium text-muted-foreground">Models</div>
                         {displayTopModels.length === 0 ? (
                             <div className="px-3 py-2 text-xs text-muted-foreground">No models</div>
@@ -583,7 +604,7 @@ const GuestMenu: React.FC<UnifiedConfigMenuProps> = () => {
                                 <div className="flex-shrink-0">
                                     <KortixLogo size={16} />
                                 </div>
-                                <span className="truncate text-sm">FuFanManus</span>
+                                <span className="truncate text-sm">AlexManus</span>
                                 <ChevronDown size={12} className="opacity-60" />
                             </div>
                         </Button>
@@ -605,5 +626,3 @@ export const UnifiedConfigMenu: React.FC<UnifiedConfigMenuProps> = (props) => {
 };
 
 export default UnifiedConfigMenu;
-
-

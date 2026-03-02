@@ -73,6 +73,7 @@ export const Changelog = ({
                   </ul>
                 )}
                 {entry.image && (
+                  // eslint-disable-next-line @next/next/no-img-element -- Changelog media may be external URLs from content data.
                   <img
                     src={entry.image}
                     alt={`${entry.version} visual`}

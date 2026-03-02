@@ -1,6 +1,7 @@
 import { createMutationHook, createQueryHook } from '@/hooks/use-query';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { useFeatureFlag } from '@/lib/feature-flags';
 import { workflowKeys } from './workflow-keys';
 import { 
   CreateWorkflowRequest, 
@@ -16,11 +17,13 @@ import {
 
 
 export const useAgentWorkflows = (agentId: string) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
+
   return createQueryHook(
     workflowKeys.agent(agentId),
     () => getAgentWorkflows(agentId),
     {
-      enabled: !!agentId,
+      enabled: !!agentId && customAgentsEnabled && !customAgentsLoading,
       staleTime: 30000,
     }
   )();
@@ -86,12 +89,14 @@ export const useExecuteWorkflow = () => {
 };
 
 export const useWorkflowExecutions = (agentId: string, workflowId: string, limit: number = 20) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
+
   return createQueryHook(
     workflowKeys.executions(agentId, workflowId),
     () => getWorkflowExecutions(agentId, workflowId, limit),
     {
-      enabled: !!agentId && !!workflowId,
+      enabled: !!agentId && !!workflowId && customAgentsEnabled && !customAgentsLoading,
       staleTime: 10000, // 10 seconds
     }
   )();
-}; 
+};

@@ -23,7 +23,7 @@ async def example_multi_app_usage():
     print("1. 用户注册/登录")
     print(f"   默认应用: {auth_service.default_app_name}")
     print("   - 用户认证相关的会话和事件都存储在默认应用中")
-    print("   - app_name: fufanmanus")
+    print("   - app_name: AlexManus")
     print("   - 包含: 登录事件、注册事件、用户状态等\n")
     
     # 2. 用户创建第一个agent

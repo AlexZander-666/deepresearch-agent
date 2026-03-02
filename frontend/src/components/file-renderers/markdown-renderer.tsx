@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 'use client';
 
 import React, { forwardRef } from 'react';
@@ -140,3 +141,4 @@ export const MarkdownRenderer = forwardRef<
 });
 
 MarkdownRenderer.displayName = 'MarkdownRenderer';
+

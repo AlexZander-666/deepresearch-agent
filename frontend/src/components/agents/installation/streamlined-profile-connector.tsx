@@ -59,8 +59,14 @@ export const ProfileConnector: React.FC<ProfileConnectorProps> = ({
     isComposioStep ? step.app_slug : undefined,
     undefined
   );
-  const configProperties = serverDetails?.connections?.[0]?.configSchema?.properties || {};
-  const requiredFields = serverDetails?.connections?.[0]?.configSchema?.required || [];
+  const configProperties = useMemo(
+    () => serverDetails?.connections?.[0]?.configSchema?.properties || {},
+    [serverDetails],
+  );
+  const requiredFields = useMemo(
+    () => serverDetails?.connections?.[0]?.configSchema?.required || [],
+    [serverDetails],
+  );
   
   const hasConnectedComposioProfile = composioProfiles && composioProfiles.length > 0;
 
@@ -133,9 +139,9 @@ export const ProfileConnector: React.FC<ProfileConnectorProps> = ({
     }
   }, [handleCreateProfile, profileStep]);
 
-  const isFieldRequired = (fieldName: string) => {
+  const isFieldRequired = useCallback((fieldName: string) => {
     return requiredFields.includes(fieldName);
-  };
+  }, [requiredFields]);
 
     const SelectProfileStep = useMemo(() => (
     <div className="space-y-4">

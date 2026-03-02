@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -341,8 +342,7 @@ export const PlaybackControls = ({
       messages,
       currentMessageIndex,
       setCurrentToolIndex,
-      isSidePanelOpen,
-      onToggleSidePanel,
+      isToolInitialized,
       updatePlaybackState,
       visibleMessages,
     ],
@@ -615,3 +615,4 @@ export const PlaybackControls = ({
 };
 
 export default PlaybackControls;
+

@@ -20,7 +20,7 @@ class AuthService:
     def __init__(self):
         self.db = DBConnection()
         self.auth = AuthUtils()
-        self.default_app_name = "fufanmanus"  # 默认应用名称
+        self.default_app_name = "AlexManus"  # 默认应用名称
     
     async def _get_client(self):
         """获取数据库客户端"""
@@ -91,10 +91,10 @@ class AuthService:
             'status': 'active'
         }, app_name)
         
-        # 注册时创建FuFanManus Agent
-        from agent.fufanmanus.repository import FufanmanusAgentRepository
-        repository = FufanmanusAgentRepository()
-        await repository.create_fufanmanus_agent(str(user['id']))
+        # 注册时创建AlexManus Agent
+        from agent.alexmanus.repository import AlexManusAgentRepository
+        repository = AlexManusAgentRepository()
+        await repository.create_AlexManus_agent(str(user['id']))
         
         logger.info(f"User registered: {request.email}")
         
@@ -279,7 +279,7 @@ class AuthService:
                 user_id, token_hash, expires_at, datetime.now()
             )
     
-    async def _update_user_state(self, client, user_id: str, state_data: dict, app_name: str = "fufanmanus"):
+    async def _update_user_state(self, client, user_id: str, state_data: dict, app_name: str = "AlexManus"):
         """Update user state"""
         try:
             # 检查是否已存在用户状态
@@ -326,7 +326,7 @@ class AuthService:
         except Exception as e:
             logger.warning(f"Failed to update user state: {e}")
     
-    async def _create_adk_session(self, client, user_id: str, session_data: dict, app_name: str = "fufanmanus"):
+    async def _create_adk_session(self, client, user_id: str, session_data: dict, app_name: str = "AlexManus"):
         """Create ADK session"""
         try:
             # 生成会话ID
@@ -351,7 +351,7 @@ class AuthService:
             return None
     
     async def _log_adk_event(self, client, user_id: str, event_type: str, event_data: dict, 
-                           session_id: str = None, app_name: str = "fufanmanus"):
+                           session_id: str = None, app_name: str = "AlexManus"):
         """记录Google ADK事件"""
         try:
             import uuid
@@ -476,7 +476,7 @@ class AuthService:
         
         return agents
 
-    async def _close_user_sessions(self, client, user_id: str, app_name: str = "fufanmanus"):
+    async def _close_user_sessions(self, client, user_id: str, app_name: str = "AlexManus"):
         """Close all active ADK sessions for a user"""
         try:
             # 更新所有该用户的sessions状态为closed
@@ -498,7 +498,7 @@ class AuthService:
         except Exception as e:
             logger.warning(f"Failed to close user sessions: {e}")
     
-    async def _log_logout_event(self, client, user_id: str, app_name: str = "fufanmanus"):
+    async def _log_logout_event(self, client, user_id: str, app_name: str = "AlexManus"):
         """Log logout event to ADK"""
         try:
             # 尝试找到最近的活跃session来记录logout事件

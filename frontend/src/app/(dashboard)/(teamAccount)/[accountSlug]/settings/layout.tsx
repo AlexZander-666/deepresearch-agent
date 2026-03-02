@@ -22,7 +22,6 @@ export default function TeamSettingsLayout({
   const items = [
     { name: 'Account', href: `/${accountSlug}/settings` },
     { name: 'Members', href: `/${accountSlug}/settings/members` },
-    { name: 'Billing', href: `/${accountSlug}/settings/billing` },
   ];
   return (
     <div className="space-y-6 w-full">

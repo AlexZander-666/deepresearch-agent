@@ -21,6 +21,7 @@ export const useStartAgentMutation = () =>
       threadId: string;
       options?: {
         model_name?: string;
+        model_provider?: 'dashscope' | 'siliconflow';
         enable_thinking?: boolean;
         reasoning_effort?: string;
         stream?: boolean;

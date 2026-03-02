@@ -16,7 +16,7 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
     else:
         metadata = metadata_raw if isinstance(metadata_raw, dict) else {}
     
-    is_fufanmanus_default = metadata.get('is_fufanmanus_default', False)
+    is_AlexManus_default = metadata.get('is_AlexManus_default', False)
     centrally_managed = metadata.get('centrally_managed', False)
     restrictions = metadata.get('restrictions', {})
     
@@ -42,10 +42,10 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
             agentpress_tools = version_data.get('agentpress_tools', {})
             workflows = []
         
-        if is_fufanmanus_default:
-            from agent.fufanmanus.config import FufanmanusConfig
-            system_prompt = FufanmanusConfig.get_system_prompt()
-            agentpress_tools = FufanmanusConfig.DEFAULT_TOOLS
+        if is_AlexManus_default:
+            from agent.alexmanus.config import AlexManusConfig
+            system_prompt = AlexManusConfig.get_system_prompt()
+            agentpress_tools = AlexManusConfig.DEFAULT_TOOLS
         
         config = {
             'agent_id': agent_data['agent_id'],
@@ -64,7 +64,7 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
             'avatar': agent_data.get('avatar'),
             'avatar_color': agent_data.get('avatar_color'),
             'profile_image_url': agent_data.get('profile_image_url'),
-            'is_fufanmanus_default': is_fufanmanus_default,
+            'is_AlexManus_default': is_AlexManus_default,
             'centrally_managed': centrally_managed,
             'restrictions': restrictions
         }
@@ -106,10 +106,10 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
         else:
             agentpress_tools = agentpress_tools_raw if isinstance(agentpress_tools_raw, dict) else {}
         
-        if is_fufanmanus_default:
-            from agent.fufanmanus.config import FufanmanusConfig
-            system_prompt = FufanmanusConfig.get_system_prompt()
-            agentpress_tools = FufanmanusConfig.DEFAULT_TOOLS
+        if is_AlexManus_default:
+            from agent.alexmanus.config import AlexManusConfig
+            system_prompt = AlexManusConfig.get_system_prompt()
+            agentpress_tools = AlexManusConfig.DEFAULT_TOOLS
         else:
             system_prompt = agent_data.get('system_prompt', '')
         
@@ -130,7 +130,7 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
             'avatar': agent_data.get('avatar'),
             'avatar_color': agent_data.get('avatar_color'),
             'profile_image_url': agent_data.get('profile_image_url'),
-            'is_fufanmanus_default': is_fufanmanus_default,
+            'is_AlexManus_default': is_AlexManus_default,
             'centrally_managed': centrally_managed,
             'restrictions': restrictions
         }
@@ -141,10 +141,10 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
         logger.info(f"Using agent config for agent {agent_id}")
         config = agent_data['config'].copy()
         
-        if is_fufanmanus_default:
-            from agent.fufanmanus.config import FufanmanusConfig
-            config['system_prompt'] = FufanmanusConfig.get_system_prompt()
-            config['tools']['agentpress'] = FufanmanusConfig.DEFAULT_TOOLS
+        if is_AlexManus_default:
+            from agent.alexmanus.config import AlexManusConfig
+            config['system_prompt'] = AlexManusConfig.get_system_prompt()
+            config['tools']['agentpress'] = AlexManusConfig.DEFAULT_TOOLS
         
         config.update({
             'agent_id': agent_data['agent_id'],
@@ -154,7 +154,7 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
             'account_id': agent_data.get('account_id') or agent_data.get('user_id'),
             'current_version_id': agent_data.get('current_version_id'),
             'model': config.get('model'),  # Include model from config
-            'is_fufanmanus_default': is_fufanmanus_default,
+            'is_AlexManus_default': is_AlexManus_default,
             'centrally_managed': centrally_managed,
             'restrictions': restrictions
         })
@@ -193,7 +193,7 @@ def extract_agent_config(agent_data: Dict[str, Any], version_data: Optional[Dict
         'avatar': agent_data.get('avatar'),
         'avatar_color': agent_data.get('avatar_color'),
         'profile_image_url': agent_data.get('profile_image_url'),
-        'is_fufanmanus_default': is_fufanmanus_default,
+        'is_AlexManus_default': is_AlexManus_default,
         'centrally_managed': centrally_managed,
         'restrictions': restrictions
     }
@@ -208,7 +208,7 @@ def build_unified_config(
     custom_mcps: Optional[List[Dict[str, Any]]] = None,
     avatar: Optional[str] = None,
     avatar_color: Optional[str] = None,
-    fufanmanus_metadata: Optional[Dict[str, Any]] = None,
+    AlexManus_metadata: Optional[Dict[str, Any]] = None,
     workflows: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     simplified_tools = {}
@@ -232,8 +232,8 @@ def build_unified_config(
         }
     }
     
-    if fufanmanus_metadata:
-        config['fufanmanus_metadata'] = fufanmanus_metadata
+    if AlexManus_metadata:
+        config['AlexManus_metadata'] = AlexManus_metadata
     
     return config
 
@@ -295,8 +295,8 @@ def get_mcp_configs(config: Dict[str, Any]) -> List[Dict[str, Any]]:
     return all_mcps
 
 
-def is_fufanmanus_default_agent(config: Dict[str, Any]) -> bool:
-    return config.get('is_fufanmanus_default', False)
+def is_AlexManus_default_agent(config: Dict[str, Any]) -> bool:
+    return config.get('is_AlexManus_default', False)
 
 
 def get_agent_restrictions(config: Dict[str, Any]) -> Dict[str, bool]:
@@ -304,15 +304,15 @@ def get_agent_restrictions(config: Dict[str, Any]) -> Dict[str, bool]:
 
 
 def can_edit_field(config: Dict[str, Any], field_name: str) -> bool:
-    if not is_fufanmanus_default_agent(config):
+    if not is_AlexManus_default_agent(config):
         return True
     
     restrictions = get_agent_restrictions(config)
     return restrictions.get(field_name, True)
 
 
-def get_default_system_prompt_for_fufanmanus_agent() -> str:
-    from agent.fufanmanus.config import FufanmanusConfig
-    return FufanmanusConfig.get_system_prompt()
+def get_default_system_prompt_for_AlexManus_agent() -> str:
+    from agent.alexmanus.config import AlexManusConfig
+    return AlexManusConfig.get_system_prompt()
 
 

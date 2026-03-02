@@ -3,6 +3,7 @@
 import { motion, useInView, AnimatePresence } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { Icons } from '@/components/home/icons';
+import Image from 'next/image';
 
 interface TaskConfig {
   title: string;
@@ -115,9 +116,11 @@ export function AITaskExecution({
           className="relative"
         >
           <div className="size-12 bg-black rounded-full flex items-center justify-center">
-            <img 
-              src="/kortix-symbol.svg" 
-              alt="Kortix Symbol" 
+            <Image
+              src="/kortix-symbol.svg"
+              alt="Kortix Symbol"
+              width={24}
+              height={24}
               className="size-6 filter brightness-0 invert"
             />
           </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 
 // Global cache to persist between component mounts
@@ -78,7 +78,7 @@ export function useCachedFile<T = string>(
     : null;
 
   // Create a cached fetch function
-  const getCachedFile = async (key: string, force = false) => {
+  const getCachedFile = useCallback(async (key: string, force = false) => {
     // Check if we have a valid cached version
     const cached = fileCache.get(key);
     const now = Date.now();
@@ -216,25 +216,33 @@ export function useCachedFile<T = string>(
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    filePath,
+    options.contentType,
+    options.expiration,
+    sandboxId,
+    session?.access_token,
+  ]);
 
   // Function to get data from cache first, then network if needed
-  const getFileContent = async () => {
+  const getFileContent = useCallback(async () => {
     if (!cacheKey) return;
 
     const processContent = (content: any) => {
-      if (localBlobUrl) {
-        URL.revokeObjectURL(localBlobUrl);
-      }
+      setLocalBlobUrl((previousUrl) => {
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl);
+        }
 
-      if (content instanceof Blob) {
-        const newUrl = URL.createObjectURL(content);
-        setLocalBlobUrl(newUrl);
-        setData(newUrl as any);
-      } else {
-        setLocalBlobUrl(null);
+        if (content instanceof Blob) {
+          const newUrl = URL.createObjectURL(content);
+          setData(newUrl as any);
+          return newUrl;
+        }
+
         setData(content);
-      }
+        return null;
+      });
     };
     
     try {
@@ -261,7 +269,7 @@ export function useCachedFile<T = string>(
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [cacheKey, getCachedFile, options.expiration]);
 
   useEffect(() => {
     if (sandboxId && filePath) {
@@ -275,12 +283,14 @@ export function useCachedFile<T = string>(
     
     // Clean up the local blob URL when component unmounts
     return () => {
-      if (localBlobUrl) {
-        URL.revokeObjectURL(localBlobUrl);
-        setLocalBlobUrl(null);
-      }
+      setLocalBlobUrl((previousUrl) => {
+        if (previousUrl) {
+          URL.revokeObjectURL(previousUrl);
+        }
+        return null;
+      });
     };
-  }, [sandboxId, filePath, options.contentType]);
+  }, [filePath, getFileContent, sandboxId]);
 
   // Expose the cache manipulation functions
   return {

@@ -28,6 +28,11 @@ import {
 } from '@/components/thread/types';
 import { safeJsonParse } from '@/components/thread/utils';
 import { useAgentStream } from '@/hooks/useAgentStream';
+import {
+  isAgentRunNotRunningError,
+  isProviderAccountStreamError,
+  toDisplayAgentStreamError,
+} from '@/hooks/agent-stream-error-utils';
 import { ThreadSkeleton } from '@/components/thread/content/ThreadSkeleton';
 import { extractToolName } from '@/components/thread/tool-views/xml-parser';
 
@@ -176,12 +181,21 @@ export default function ThreadPage({
   );
 
   const handleStreamError = useCallback((errorMessage: string) => {
-    console.error(`[PAGE] Stream hook error: ${errorMessage}`);
-    toast.error(errorMessage, { duration: 15000 });
+    const displayErrorMessage = toDisplayAgentStreamError(errorMessage);
+    if (isProviderAccountStreamError(errorMessage)) {
+      console.warn(`[PAGE] Stream hook provider account error: ${errorMessage}`);
+    } else {
+      console.error(`[PAGE] Stream hook error: ${errorMessage}`);
+    }
+    if (isAgentRunNotRunningError(errorMessage)) {
+      return;
+    }
+
+    toast.error(displayErrorMessage, { duration: 15000 });
   }, []);
 
   const handleStreamClose = useCallback(() => {
-  }, [agentStatus]);
+  }, []);
 
   // Handle streaming tool calls
   const handleStreamingToolCall = useCallback(

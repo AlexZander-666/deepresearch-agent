@@ -1,0 +1,60 @@
+[
+  {
+    "case": "deep",
+    "thread_id": "04aac13f-09e6-4038-b1bd-24c68b9cea00",
+    "run_id": "8dd022dc-37d1-4390-8f4b-aa54d310ebcd",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:26:56.916544+00:00",
+    "scoped_message_count": 19,
+    "thread_run_ids": [
+      "33ae28d3-7b42-4a47-91e0-b2965066d7f5",
+      "ea99efce-c807-4b25-b374-a57f42b4a378",
+      "dfa949f2-384a-435c-b737-95d25aa497ee"
+    ],
+    "tool_summary": {
+      "ask": {
+        "completed": 0,
+        "failed": 1,
+        "error": 0
+      }
+    },
+    "assistant_count": 4,
+    "synthetic_kinds_in_scope": [
+      "structured_research_summary"
+    ],
+    "final_assistant_synthetic": "structured_research_summary",
+    "final_assistant_preview": "基于当前已收集证据的结构化总结如下：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 以下内容优先基于已执行工具返回的事实证据进行整理。\n\n二、关键证据（基于检索标题）\n- Top 5 AI Agent Trends for 2026 - USAII\n- Agentic AI Market Size, Share | Forecast Report [2026-2034]\n- US Ai Agents Market Size & Outlook, 2026-2033\n\n三、工具执行记录\n- web_search：提取到 5 条候选来源。\n- computer-use/sandbox screenshot：本次未捕获到可用截图证据。\n\n四、参考来源\n1. Top 5 AI Agent Trends for 2026 - USAII - https://www.usaii.org/ai-insights/top-5-ai-agent-trends-for-2026\n2. Agentic AI Market Size, Share | Forecast Repor"
+  },
+  {
+    "case": "browser",
+    "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+    "run_id": "aa0bdae8-d205-4a89-b729-759b972787e0",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:28:28.122812+00:00",
+    "scoped_message_count": 6,
+    "thread_run_ids": [
+      "88ecea24-331f-4507-a6ca-b2581de2e324"
+    ],
+    "tool_summary": {},
+    "assistant_count": 1,
+    "synthetic_kinds_in_scope": [],
+    "final_assistant_synthetic": null,
+    "final_assistant_preview": "我将使用浏览器工具来访问 https://example.com。让我使用 `browser_navigate_to` 工具：\n\n\n\n现在我已经成功导航到 https://example.com。页面已经加载完成。让我为您返回页面标题和状态说明。\n\n根据页面截图显示，页面已成功加载，标题显示为 \"Example Domain\"。\n\n**页面标题：** Example Domain\n\n**状态说明：** 页面已成功加载并显示标准的示例域名网页内容，包含标题、段落和链接等元素。\n\n如果您需要进一步的操作或信息提取，请告诉我！"
+  },
+  {
+    "case": "sandbox",
+    "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+    "run_id": "c66d65cb-910f-49dc-b007-43be9900cc78",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:28:38.563584+00:00",
+    "scoped_message_count": 5,
+    "thread_run_ids": [
+      "ea672f8f-fffe-4a0f-b5b8-8e58ee1053f8"
+    ],
+    "tool_summary": {},
+    "assistant_count": 1,
+    "synthetic_kinds_in_scope": [],
+    "final_assistant_synthetic": null,
+    "final_assistant_preview": "根据您的要求，我已经在sandbox内执行了一次screenshot，并提供了屏幕摘要。\n\n对于截图链接的返回，我需要澄清：截图工具执行后会将截图存储在服务器上，但当前的screenshot工具执行结果没有提供直接的URL链接。通常截图结果应该包含文件的路径或访问方式。\n\n**状态说明：**\n截图已完成，Linux GNOME桌面环境正常就绪。\n\n由于截图工具没有返回具体的URL链接，如果需要获取实际的截图文件，可能需要使用其他工具或方法来提取截图数据。"
+  }
+]

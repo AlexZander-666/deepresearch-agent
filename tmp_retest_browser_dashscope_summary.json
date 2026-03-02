@@ -1,0 +1,44 @@
+{
+  "case": "browser",
+  "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+  "anchor_created_at": "2026-03-02T06:05:09.853652+00:00",
+  "scoped_message_count": 62,
+  "thread_run_ids": [
+    "913b003e-dc49-4c1a-9c4f-2c051ea3912a",
+    "8e9b34bf-bc4c-4b36-a607-51fa5d0a25c9",
+    "43da2fe6-1050-4b11-b1ba-fed152e38409",
+    "b5a72242-6c75-4803-a2a8-2d66688bf21e",
+    "b4344834-31df-4865-b04d-65154a25a59c",
+    "28e853ee-fed1-4bce-a2bd-795ca716337d",
+    "205e4684-daa3-40bc-bb05-ffd476f1f12e",
+    "8c97ffc9-f0a1-4bc9-a6ac-ab48bc3126e9"
+  ],
+  "tool_summary": {
+    "screenshot": {
+      "completed": 0,
+      "failed": 4,
+      "error": 0
+    },
+    "browser_wait": {
+      "completed": 1,
+      "failed": 0,
+      "error": 0
+    },
+    "move_to": {
+      "completed": 0,
+      "failed": 1,
+      "error": 0
+    },
+    "web_search": {
+      "completed": 1,
+      "failed": 0,
+      "error": 0
+    }
+  },
+  "assistant_count": 15,
+  "final_assistant_synthetic": "structured_research_summary",
+  "final_assistant_preview": "基于当前已收集证据的结构化总结如下：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 以下内容优先基于已执行工具返回的事实证据进行整理。\n\n二、关键证据（基于检索标题）\n- Whois example.com\n- Typo traps: analyzing traffic to exmaple.com (or is it ...\n- What's the example.com domain? - PlotHost\n\n三、工具执行记录\n- web_",
+  "synthetic_kinds_in_scope": [
+    "structured_research_summary"
+  ]
+}

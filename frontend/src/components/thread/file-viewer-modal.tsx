@@ -444,7 +444,7 @@ export function FileViewerModal({
       // Update path state - must happen after clearing selection
       setCurrentPath(normalizedPath);
     },
-    [normalizePath, clearSelectedFile, currentPath],
+    [normalizePath, clearSelectedFile],
   );
 
   // Navigate to a specific path in the breadcrumb
@@ -463,7 +463,7 @@ export function FileViewerModal({
   const navigateHome = useCallback(() => {
     clearSelectedFile();
     setCurrentPath('/workspace');
-  }, [clearSelectedFile, currentPath]);
+  }, [clearSelectedFile]);
 
   // Function to generate breadcrumb segments from a path
   const getBreadcrumbSegments = useCallback(
@@ -669,8 +669,10 @@ export function FileViewerModal({
 
   // Modify the cleanup effect to respect active downloads
   useEffect(() => {
+    const activeDownloadUrlSet = activeDownloadUrls.current;
+
     return () => {
-      if (blobUrlForRenderer && !isDownloading && !activeDownloadUrls.current.has(blobUrlForRenderer)) {
+      if (blobUrlForRenderer && !isDownloading && !activeDownloadUrlSet.has(blobUrlForRenderer)) {
         URL.revokeObjectURL(blobUrlForRenderer);
       }
     };

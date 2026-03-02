@@ -20,6 +20,7 @@ import { useMaintenanceNoticeQuery } from '@/hooks/react-query/edge-flags';
 import { useProjects, useThreads } from '@/hooks/react-query/sidebar/use-sidebar';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAgents } from '@/hooks/react-query/agents/use-agents';
+import { shouldShowDashboardLoading } from './layout-content-state';
 
 interface DashboardLayoutContentProps {
   children: React.ReactNode;
@@ -71,6 +72,12 @@ export default function DashboardLayoutContent({
 
   // API health is now managed by useApiHealth hook
   const isApiHealthy = healthData?.status === 'ok' && !healthError;
+  const showDashboardLoading = shouldShowDashboardLoading({
+    authLoading: isLoading,
+    healthLoading: isCheckingHealth,
+    healthStatus: healthData?.status,
+    healthError,
+  });
 
   // Check authentication status
   useEffect(() => {
@@ -106,7 +113,7 @@ export default function DashboardLayoutContent({
   }
 
   // Show loading state while checking auth or health
-  if (isLoading || isCheckingHealth) {
+  if (showDashboardLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

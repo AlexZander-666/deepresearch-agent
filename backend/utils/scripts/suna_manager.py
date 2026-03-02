@@ -27,7 +27,7 @@ from pathlib import Path
 backend_dir = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(backend_dir))
 
-from agent.fufanmanus import SunaSyncService
+from agent.alexmanus import SunaSyncService
 from utils.logger import logger
 
 # Global flag for graceful shutdown
@@ -271,7 +271,7 @@ class SunaManagerCLI:
             missing_accounts = [acc for acc in all_accounts if acc not in existing_account_ids]
             
             if not missing_accounts:
-                from agent.fufanmanus.sync_service import SyncResult
+                from agent.alexmanus.sync_service import SyncResult
                 return SyncResult(
                     success=True,
                     details=[{"message": "All users already have Suna agents"}]
@@ -319,7 +319,7 @@ class SunaManagerCLI:
             
             logger.info(f"🎉 Installation completed: {final_message}")
             
-            from agent.fufanmanus.sync_service import SyncResult
+            from agent.alexmanus.sync_service import SyncResult
             return SyncResult(
                 success=total_failed == 0 and not shutdown_requested,
                 synced_count=total_success,
@@ -336,7 +336,7 @@ class SunaManagerCLI:
         except Exception as e:
             error_msg = f"Installation operation failed: {str(e)}"
             logger.error(error_msg)
-            from agent.fufanmanus.sync_service import SyncResult
+            from agent.alexmanus.sync_service import SyncResult
             return SyncResult(success=False, errors=[error_msg])
 
     async def repair_command(self):
@@ -344,7 +344,7 @@ class SunaManagerCLI:
         print("🛠️  Repairing orphaned Suna agents and fixing broken version pointers")
         try:
             from datetime import datetime, timezone
-            from agent.fufanmanus.config import FufanmanusConfig
+            from agent.alexmanus.config import AlexManusConfig
             from agent.versioning.version_service import get_version_service
 
             repo = self.sync_service.repository
@@ -355,10 +355,10 @@ class SunaManagerCLI:
 
             # Unified config in the structure expected by repository repair helpers
             unified_config = {
-                "system_prompt": FufanmanusConfig.get_system_prompt(),
-                "model": FufanmanusConfig.DEFAULT_MODEL,
+                "system_prompt": AlexManusConfig.get_system_prompt(),
+                "model": AlexManusConfig.DEFAULT_MODEL,
                 "tools": {
-                    "agentpress": FufanmanusConfig.DEFAULT_TOOLS
+                    "agentpress": AlexManusConfig.DEFAULT_TOOLS
                 }
             }
 

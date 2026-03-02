@@ -1,0 +1,16 @@
+{
+  "case": "sandbox",
+  "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+  "anchor_created_at": "2026-03-02T06:06:01.589369+00:00",
+  "scoped_message_count": 6,
+  "thread_run_ids": [
+    "78059740-0470-4322-bf11-9df038500c51"
+  ],
+  "tool_summary": {},
+  "assistant_count": 2,
+  "final_assistant_synthetic": "web_search_fallback_summary",
+  "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- “计算机使用”模型和工具| Generative AI on Vertex AI\n- 5.1 Computer Use 能力概述 - 前言| claude_guide Claude 技术指南\n- 计算机使用| Gemini ",
+  "synthetic_kinds_in_scope": [
+    "web_search_fallback_summary"
+  ]
+}

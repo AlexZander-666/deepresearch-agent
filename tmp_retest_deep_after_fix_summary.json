@@ -1,0 +1,37 @@
+﻿{
+    "thread_id":  "f03c4851-3011-49cb-8d2d-5d29b01c166f",
+    "thread_run_ids":  [
+                           "cd51be31-152f-4a59-b86e-ea7854f269ff",
+                           "aecada8b-51ea-4075-ad05-7b1e61d8297e",
+                           "70a1b9c3-2002-4aa0-8da8-f1139f3de20b",
+                           "36d9aaaa-fb5a-4b5e-b983-468a03a1d0e5",
+                           "cf426eff-a031-4b91-9edf-34ceb9613e7b",
+                           "555687c3-d4cf-432b-924d-d4305cc1f126"
+                       ],
+    "total_messages":  58,
+    "tool_summary":  {
+                         "scrape_webpage":  {
+                                                "completed":  0,
+                                                "failed":  1,
+                                                "error":  0
+                                            },
+                         "create_tasks":  {
+                                              "completed":  1,
+                                              "failed":  2,
+                                              "error":  0
+                                          },
+                         "web_search":  {
+                                            "completed":  1,
+                                            "failed":  0,
+                                            "error":  0
+                                        },
+                         "view_tasks":  {
+                                            "completed":  1,
+                                            "failed":  0,
+                                            "error":  0
+                                        }
+                     },
+    "assistant_count":  13,
+    "final_assistant_synthetic":  null,
+    "final_assistant_preview":  ""
+}

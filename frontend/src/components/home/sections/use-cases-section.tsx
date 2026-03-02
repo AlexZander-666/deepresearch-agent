@@ -73,6 +73,7 @@ export function UseCasesSection() {
 
                 <div className="w-full h-[160px] bg-accent/10">
                   <div className="relative w-full h-full overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- Use-case screenshots come from content URLs and may be off-domain. */}
                     <img
                       src={
                         useCase.image ||

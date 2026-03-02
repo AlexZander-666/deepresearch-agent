@@ -213,7 +213,6 @@ async def run_agent_background(
     pubsub = None
     stop_checker = None
     stop_signal_received = False
-    pending_redis_operations = []  
 
     # 定义 Redis keys 和 channels
     # 两层控制架构
@@ -320,7 +319,6 @@ async def run_agent_background(
 
         final_status = "running"
         error_message = None
-        pending_redis_operations = []
 
         response_count = 0
 
@@ -344,8 +342,9 @@ async def run_agent_background(
             #    ↑                                    ↑
             # lpush                               rpush
             # (左入栈)                            (右入栈)
-            pending_redis_operations.append(asyncio.create_task(redis.rpush(response_list_key, response_json)))
-            pending_redis_operations.append(asyncio.create_task(redis.publish(response_channel, "new")))
+            # Keep Redis writes ordered to avoid "completed" arriving before late assistant chunks.
+            await redis.rpush(response_list_key, response_json)
+            await redis.publish(response_channel, "new")
             total_responses += 1
             
             if total_responses % 10 == 1:  # 每10个响应打印一次进度
@@ -454,12 +453,6 @@ async def run_agent_background(
 
         # 清理运行锁
         await _cleanup_redis_run_lock(agent_run_id)
-
-        # 等待所有挂起的Redis操作完成，超时30秒
-        try:
-            await asyncio.wait_for(asyncio.gather(*pending_redis_operations), timeout=30.0)
-        except asyncio.TimeoutError:
-            logger.warning(f"Timeout waiting for pending Redis operations for {agent_run_id}")
 
         logger.info(f"Agent run background task fully completed for: {agent_run_id} (Instance: {instance_id}) with final status: {final_status}")
 

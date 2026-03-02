@@ -214,7 +214,7 @@ class ADKThreadManager:
         system_prompt: Dict[str, Any],
         stream: bool = True,
         temporary_message: Optional[Dict[str, Any]] = None,
-        llm_model: str = "deepseek/deepseek-chat",
+        llm_model: str = "deepseek-v3.2",
         llm_temperature: float = 0,
         llm_max_tokens: Optional[int] = None,
         processor_config: Optional[ProcessorConfig] = None,
@@ -387,7 +387,6 @@ class ADKThreadManager:
 
         # 定义一个包装器生成器，处理自动继续逻辑
         async def auto_continue_wrapper():
-            print("我先进入的auto_continue_wrapper")
             nonlocal auto_continue, auto_continue_count
 
             while auto_continue and (native_max_auto_continues == 0 or auto_continue_count < native_max_auto_continues):
@@ -397,7 +396,6 @@ class ADKThreadManager:
                 # 运行一次线程，传递可能修改后的系统提示
                 # 仅在第一次迭代时传递 temp_msg
                 try:
-                    print("我在这里要开始执行 _run_once")
                     response_gen = await _run_once(temporary_message if auto_continue_count == 0 else None)
 
                     # Handle error responses
@@ -405,24 +403,21 @@ class ADKThreadManager:
                         logger.error(f"Error in auto_continue_wrapper: {response_gen.get('message', 'Unknown error')}")
                         yield response_gen
                         return  # Exit the generator on error
-                    print("我在这里要获取 response_gen 的属性了")
                     # Process each chunk
                     try:
                         if hasattr(response_gen, '__aiter__'):
                             from typing import AsyncGenerator, cast
                             async for chunk in cast(AsyncGenerator, response_gen):
                                 
-                                # 🔧 添加：检测工具执行完成，立即终止
+                                # Inspect status payloads for auto-continue signals.
                                 if chunk.get('type') == 'status':
                                     try:
                                         content = json.loads(chunk.get('content', '{}'))
                                         status_type = content.get('status_type')
                                         
-                                        # 检测到工具完成，立即终止整个流程
+                                        # 工具完成不应提前终止流式流程；后续消息中可能仍有更多工具调用或总结文本
                                         if status_type == 'tool_completed':
-                                            logger.info("🔧 检测到工具执行完成，立即终止流程")
-                                            yield chunk  # 先输出工具完成状态
-                                            return  # 🔧 彻底终止，不再处理任何后续内容
+                                            logger.info("Detected tool_completed status in auto-continue wrapper")
                                             
                                         # 其他status处理逻辑
                                         if content.get('finish_reason') == 'length':

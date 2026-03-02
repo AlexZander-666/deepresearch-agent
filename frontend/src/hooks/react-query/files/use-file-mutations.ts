@@ -3,12 +3,14 @@ import { useAuth } from '@/components/AuthProvider';
 import { fileQueryKeys } from './use-file-queries';
 import { FileCache } from '@/hooks/use-cached-file';
 import { toast } from 'sonner';
+import { buildSafeJsonBody, normalizePathForRequest } from '@/lib/request-json';
 // Import the normalizePath function from use-file-queries
 function normalizePath(path: string): string {
   if (!path) return '/';
   
   // Remove any leading/trailing whitespace
   path = path.trim();
+  path = normalizePathForRequest(path);
   
   // Ensure path starts with /
   if (!path.startsWith('/')) {
@@ -51,7 +53,7 @@ export function useFileUpload() {
 
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('path', targetPath);
+      formData.append('path', normalizePathForRequest(targetPath));
 
       const response = await fetch(`${API_URL}/sandboxes/${sandboxId}/files`, {
         method: 'POST',
@@ -108,8 +110,9 @@ export function useFileDelete() {
         throw new Error('No access token available');
       }
 
+      const normalizedPath = normalizePathForRequest(filePath);
       const response = await fetch(
-        `${API_URL}/sandboxes/${sandboxId}/files?path=${encodeURIComponent(filePath)}`,
+        `${API_URL}/sandboxes/${sandboxId}/files?path=${encodeURIComponent(normalizedPath)}`,
         {
           method: 'DELETE',
           headers: {
@@ -218,7 +221,7 @@ export function useFileCreate() {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
+        body: buildSafeJsonBody({
           path: filePath,
           content,
         }),

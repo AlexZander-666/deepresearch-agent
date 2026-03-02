@@ -17,6 +17,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      backend-postgres-new:
+        condition: service_healthy
     networks:
       - app-network
     environment:
@@ -24,6 +26,7 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-snowball2019}@backend-postgres-new:5432/${POSTGRES_DB:-my_AlexManus}
     logging:
       driver: "json-file"
       options:
@@ -42,7 +45,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: uv run dramatiq --skip-logging --processes 4 --threads 4 run_agent_background
+    command: dramatiq --skip-logging --processes 4 --threads 4 run_agent_background
     env_file:
       - .env
     volumes:
@@ -53,6 +56,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      backend-postgres-new:
+        condition: service_healthy
     networks:
       - app-network
     environment:
@@ -60,13 +65,14 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=
       - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-snowball2019}@backend-postgres-new:5432/${POSTGRES_DB:-my_AlexManus}
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
     healthcheck:
-      test: ["CMD", "uv", "run", "worker_health.py"]
+      test: ["CMD", "python", "worker_health.py"]
       timeout: 20s
       interval: 30s
       start_period: 40s
@@ -94,9 +100,29 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  backend-postgres-new:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-snowball2019}
+      - POSTGRES_DB=${POSTGRES_DB:-my_AlexManus}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-my_AlexManus}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   redis_data:
+  postgres_data:
+    name: backend_postgres_data_new

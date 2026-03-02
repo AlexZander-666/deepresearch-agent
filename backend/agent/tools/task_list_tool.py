@@ -2,11 +2,11 @@ from agentpress.tool import Tool, ToolResult
 from utils.logger import logger
 from typing import List, Dict, Any, Optional, Tuple
 import json
+import re
 from pydantic import BaseModel, Field # type: ignore
 from enum import Enum
 import uuid
 import asyncio
-import sys
 
 """
 为什么复杂任务需要任务清单？
@@ -230,123 +230,39 @@ class TaskListTool(Tool):
         """Save sections and tasks to storage"""
         try:
             client = await self.thread_manager.db.client
-            logger.info(f"Save data - Client type: {type(client)}")
-            
-            #    'section_title': '研究与准备',
-            #   'task_contents': [
-            #    '从TripAdvisor收集关于巴黎旅行的基本信息。',
-            #    '搜索巴黎的热门景点、餐厅和活动。',
-            #    '查找巴黎的交通选项及建议。',
-            #    '收集巴黎的天气预报信息。',
-            #    '确定潜在的备用计划（如遇到不可预见的情况）。',
-            #]
+            logger.info("Saving task list payload (sections=%s, tasks=%s)", len(sections), len(tasks))
 
-            # EMERGENCY DEBUG: Check for coroutines in tasks before serialization
-            print(f"🔍 _save_data: Processing {len(tasks)} tasks for serialization", file=sys.stderr)
-            
-            for i, task in enumerate(tasks):
-                print(f"🔍 Task {i} - id: {task.id}", file=sys.stderr)
-                print(f"🔍 Task {i} - content type: {type(task.content)}", file=sys.stderr)
-                print(f"🔍 Task {i} - status type: {type(task.status)}, value: {repr(task.status)}", file=sys.stderr)
-                print(f"🔍 Task {i} - section_id type: {type(task.section_id)}", file=sys.stderr)
-                
-                # Check each field for coroutines with emergency debug
+            normalized_sections = [section.model_dump() for section in sections]
+            normalized_tasks = []
+            for task in tasks:
                 if asyncio.iscoroutine(task.status):
-                    print(f"❌ FOUND COROUTINE in task.status for task {task.id}: {task.status}", file=sys.stderr)
                     task.status = TaskStatus.PENDING
-                    print(f"✅ FIXED: Set status to PENDING", file=sys.stderr)
-                    
                 if asyncio.iscoroutine(task.content):
-                    print(f"❌ FOUND COROUTINE in task.content for task {task.id}: {task.content}", file=sys.stderr)
-                    task.content = "ERROR: Content was a coroutine"
-                    
+                    task.content = ""
                 if asyncio.iscoroutine(task.section_id):
-                    print(f"❌ FOUND COROUTINE in task.section_id for task {task.id}: {task.section_id}", file=sys.stderr)
-                    task.section_id = "default-section"
-                    
-                # Try to call model_dump to see where the error occurs
-                try:
-                    print(f"🧪 Testing model_dump for task {i}...", file=sys.stderr)
-                    dump_result = task.model_dump()
-                    print(f"✅ model_dump success for task {i}", file=sys.stderr)
-                except Exception as model_dump_error:
-                    print(f"❌ model_dump FAILED for task {i}: {model_dump_error}", file=sys.stderr)
-                    print(f"   Task object: {task}", file=sys.stderr)
-                    print(f"   Task.__dict__: {task.__dict__}", file=sys.stderr)
-                    # Try to identify which field is the problem
-                    for field_name in ['id', 'content', 'status', 'section_id']:
-                        try:
-                            field_value = getattr(task, field_name)
-                            print(f"   {field_name}: {type(field_value)} = {repr(field_value)}", file=sys.stderr)
-                            if asyncio.iscoroutine(field_value):
-                                print(f"   ❌ FIELD {field_name} IS COROUTINE!", file=sys.stderr)
-                        except Exception as field_error:
-                            print(f"   ❌ Error accessing field {field_name}: {field_error}", file=sys.stderr)
-            
-            # EMERGENCY DEBUG: Test content creation 
-            print(f"🔍 Creating content dict with {len(sections)} sections and {len(tasks)} tasks", file=sys.stderr)
-            try:
-                sections_data = []
-                for i, section in enumerate(sections):
-                    print(f"🔍 Processing section {i}: {section.id}", file=sys.stderr)
-                    section_dump = section.model_dump()
-                    sections_data.append(section_dump)
-                    print(f"✅ Section {i} model_dump success", file=sys.stderr)
-                
-                tasks_data = []
-                for i, task in enumerate(tasks):
-                    print(f"🔍 Processing task {i} for content creation: {task.id}", file=sys.stderr)
-                    try:
-                        task_dump = task.model_dump()
-                        tasks_data.append(task_dump)
-                        print(f"✅ Task {i} model_dump success in content creation", file=sys.stderr)
-                    except Exception as task_dump_error:
-                        print(f"❌ Task {i} model_dump FAILED in content creation: {task_dump_error}", file=sys.stderr)
-                        raise
-                
-                content = {
-                    'sections': sections_data,
-                    'tasks': tasks_data
-                }
-                print(f"✅ Content dict created successfully", file=sys.stderr)
-                
-            except Exception as content_error:
-                print(f"❌ CONTENT CREATION FAILED: {content_error}", file=sys.stderr)
-                raise
-            
-            
-            # 找到已经存在的message
+                    task.section_id = ""
+                normalized_tasks.append(task.model_dump())
+
+            content = {
+                'sections': normalized_sections,
+                'tasks': normalized_tasks
+            }
+
+            # 找到已经存在的 message
             result = await client.table('messages').select('message_id')\
                 .eq('thread_id', self.thread_id)\
                 .eq('type', self.task_list_message_type)\
                 .order('created_at', desc=True).limit(1).execute()
-            
-            # Check if existing message found
-            print(f"🔍 Database query completed: {len(result.data) if result.data else 0} records found", file=sys.stderr)
-            
-            # Serialize content to JSON
-            try:
-                json_content = json.dumps(content)
-                print(f"JSON serialization successful, length: {len(json_content)}", file=sys.stderr)
-            except Exception as json_error:
-                print(f"JSON serialization failed: {json_error}", file=sys.stderr)
-                raise
-                
+
+            json_content = json.dumps(content)
+
             if result.data:
-                # Update existing
-                print(f"Updating existing message", file=sys.stderr)
                 message_id_for_update = result.data[0]['message_id']
-                print(f"About to update with message_id: {message_id_for_update} (type: {type(message_id_for_update)})", file=sys.stderr)
-                
-                # FIXED: Correct order - set condition first, then call update() (async method)
-                # update() returns a coroutine directly, cannot chain .eq() after it
                 await client.table('messages')\
                     .eq('message_id', message_id_for_update)\
                     .update({'content': json_content})
-                print(f"Update operation completed successfully", file=sys.stderr)
             else:
                 # 创建新的
-                print(f"🔍 Inserting new message", file=sys.stderr)
                 await client.table('messages').insert({
                     'thread_id': self.thread_id,
                     'project_id': self.project_id,
@@ -393,9 +309,183 @@ class TaskListTool(Tool):
         
         return response
 
+    def _normalize_id_list(self, raw_ids: Any) -> List[str]:
+        """Normalize IDs to a deduplicated string list.
+
+        Accepts direct strings, arrays, nested arrays, and JSON-stringified arrays
+        such as '["task-1","task-2"]'.
+        """
+        if raw_ids is None:
+            return []
+
+        if isinstance(raw_ids, str):
+            text = raw_ids.strip()
+            if not text:
+                return []
+
+            if text.startswith("[") and text.endswith("]"):
+                try:
+                    parsed = json.loads(text)
+                except json.JSONDecodeError:
+                    return [text]
+                return self._normalize_id_list(parsed)
+
+            return [text]
+
+        if isinstance(raw_ids, (list, tuple, set)):
+            normalized: List[str] = []
+            for item in raw_ids:
+                normalized.extend(self._normalize_id_list(item))
+
+            # Keep stable order while removing duplicates.
+            seen = set()
+            deduped: List[str] = []
+            for item in normalized:
+                if item in seen:
+                    continue
+                seen.add(item)
+                deduped.append(item)
+            return deduped
+
+        text = str(raw_ids).strip()
+        return [text] if text else []
+
+    def _slugify_task_reference(self, value: Any) -> str:
+        """Normalize free-form task references to a slug for fuzzy matching."""
+        text = str(value).strip().lower()
+        if not text:
+            return ""
+        slug = re.sub(r"[^a-z0-9]+", "-", text).strip("-")
+        return slug
+
+    def _resolve_task_ids(self, requested_ids: List[str], tasks: List[Task], status: Optional[str] = None) -> Tuple[List[str], List[str]]:
+        """Resolve task id aliases to concrete IDs.
+
+        Supported aliases:
+        - `task-2` / `2`: maps to the second task in current task order (1-based).
+        - `task-<uuid>`: maps to `<uuid>` when the prefixed form is used.
+        - single unresolved synthetic `task-*` while completing: falls back to first pending task.
+        """
+        task_map = {task.id: task for task in tasks}
+        ordered_task_ids = [task.id for task in tasks]
+        task_slug_pairs: List[Tuple[str, str]] = []
+        for task in tasks:
+            task_slug = self._slugify_task_reference(task.content)
+            if task_slug:
+                task_slug_pairs.append((task_slug, task.id))
+
+        resolved: List[str] = []
+        unresolved: List[str] = []
+
+        for requested in requested_ids:
+            candidate = str(requested).strip()
+            if not candidate:
+                continue
+
+            if candidate in task_map:
+                resolved.append(candidate)
+                continue
+
+            mapped_id: Optional[str] = None
+            alias_source = candidate
+
+            if candidate.startswith("task-"):
+                alias_source = candidate[5:]
+                if alias_source in task_map:
+                    mapped_id = alias_source
+                elif alias_source.isdigit():
+                    index = int(alias_source) - 1
+                    if 0 <= index < len(ordered_task_ids):
+                        mapped_id = ordered_task_ids[index]
+            elif candidate.isdigit():
+                index = int(candidate) - 1
+                if 0 <= index < len(ordered_task_ids):
+                    mapped_id = ordered_task_ids[index]
+
+            if mapped_id:
+                resolved.append(mapped_id)
+                continue
+
+            slug_candidate = self._slugify_task_reference(alias_source)
+            if slug_candidate and len(slug_candidate) >= 6:
+                for task_slug, task_id in task_slug_pairs:
+                    if slug_candidate == task_slug:
+                        mapped_id = task_id
+                        break
+                if not mapped_id:
+                    for task_slug, task_id in task_slug_pairs:
+                        if slug_candidate in task_slug or task_slug in slug_candidate:
+                            mapped_id = task_id
+                            break
+
+            if mapped_id:
+                resolved.append(mapped_id)
+            else:
+                unresolved.append(candidate)
+
+        status_value = str(status).strip().lower() if status is not None else None
+        if (
+            not resolved
+            and len(unresolved) == 1
+            and status_value == TaskStatus.COMPLETED.value
+            and unresolved[0].startswith("task-")
+        ):
+            # Model sometimes invents synthetic task-* IDs. Prefer continuing the workflow.
+            for task in tasks:
+                current_status = task.status.value if isinstance(task.status, TaskStatus) else str(task.status).strip().lower()
+                if current_status == TaskStatus.PENDING.value:
+                    logger.warning(
+                        "Falling back unresolved synthetic task id '%s' to next pending task '%s'",
+                        unresolved[0],
+                        task.id,
+                    )
+                    resolved.append(task.id)
+                    unresolved = []
+                    break
+
+        if unresolved and status_value == TaskStatus.COMPLETED.value:
+            pending_ids = [
+                task.id
+                for task in tasks
+                if (
+                    task.status.value
+                    if isinstance(task.status, TaskStatus)
+                    else str(task.status).strip().lower()
+                ) == TaskStatus.PENDING.value
+                and task.id not in resolved
+            ]
+            if pending_ids:
+                unresolved_copy = list(unresolved)
+                unresolved = []
+                for unresolved_task_id in unresolved_copy:
+                    if not pending_ids:
+                        unresolved.append(unresolved_task_id)
+                        continue
+                    fallback_task_id = pending_ids.pop(0)
+                    logger.warning(
+                        "Falling back unresolved task id '%s' to next pending task '%s'",
+                        unresolved_task_id,
+                        fallback_task_id,
+                    )
+                    resolved.append(fallback_task_id)
+
+        deduped_resolved: List[str] = []
+        seen = set()
+        for task_id in resolved:
+            if task_id in seen:
+                continue
+            seen.add(task_id)
+            deduped_resolved.append(task_id)
+
+        return deduped_resolved, unresolved
+
     async def create_tasks(self, sections: Optional[List[Dict[str, Any]]] = None,
-                          section_title: Optional[str] = None, section_id: Optional[str] = None,
-                          task_contents: Optional[List[str]] = None) -> ToolResult:
+                           section_title: Optional[str] = None, section_id: Optional[str] = None,
+                           task_contents: Optional[List[str]] = None,
+                           tasks: Optional[str] = None,
+                           section_tasks: Optional[str] = None,
+                           force_replan: bool = False,
+                           **kwargs) -> ToolResult:
         """Create tasks organized by sections for project management.
         
         This function creates a structured task list organized into sections, supporting both 
@@ -440,24 +530,291 @@ class TaskListTool(Tool):
             section_id: Existing section ID (use this OR sections array OR section_title)  
             task_contents: Task contents for single section creation (use with section_title or section_id)
                           Example: ["Fix login issue", "Update error handling"]
+            tasks: Compatibility alias used by some model function-calls. Can be a JSON string or list.
+            section_tasks: Optional mapping of section IDs to task IDs for compatibility payloads.
+            force_replan: Set true only when intentionally replacing/expanding an existing unstarted plan.
         
         Returns:
             ToolResult: Success with JSON string of created task structure, or failure with error message.
         """
         try:
+            def _parse_json_like(value: Any) -> Any:
+                if not isinstance(value, str):
+                    return value
+                stripped = value.strip()
+                if not stripped:
+                    return None
+                try:
+                    return json.loads(stripped)
+                except json.JSONDecodeError:
+                    return value
+
+            if kwargs:
+                logger.info("create_tasks received extra compatibility args: %s", sorted(kwargs.keys()))
+
+            sections = _parse_json_like(sections)
+            tasks = _parse_json_like(tasks)
+            section_tasks = _parse_json_like(section_tasks)
+            parsed_task_contents = _parse_json_like(task_contents)
+            if isinstance(parsed_task_contents, list):
+                task_contents = [str(item).strip() for item in parsed_task_contents if str(item).strip()]
+            elif isinstance(parsed_task_contents, str):
+                task_contents = [parsed_task_contents.strip()] if parsed_task_contents.strip() else None
+
             existing_sections, existing_tasks = await self._load_data()
     
             section_map = {s.id: s for s in existing_sections}
             title_map = {s.title.lower(): s for s in existing_sections}
+
+            def _task_status_str(task: Task) -> str:
+                status_value = task.status
+                if isinstance(status_value, TaskStatus):
+                    return status_value.value
+                return str(status_value).strip().lower()
+
+            def _next_pending_task_payload() -> Optional[Dict[str, str]]:
+                for task in existing_tasks:
+                    if _task_status_str(task) == TaskStatus.PENDING.value:
+                        section = section_map.get(task.section_id)
+                        return {
+                            "id": str(task.id),
+                            "content": str(task.content),
+                            "section_id": str(task.section_id),
+                            "section_title": str(section.title) if section else "",
+                        }
+                return None
+
+            completed_tasks_count = sum(
+                1 for task in existing_tasks if _task_status_str(task) == TaskStatus.COMPLETED.value
+            )
+            has_unstarted_plan = bool(existing_tasks) and completed_tasks_count == 0
+            is_bulk_replan_attempt = isinstance(sections, list) and len(sections) > 1
+
+            if has_unstarted_plan and is_bulk_replan_attempt and not force_replan:
+                response_data = self._format_response(existing_sections, existing_tasks)
+                response_data["task_creation"] = {
+                    "created_sections": 0,
+                    "created_tasks": 0,
+                    "skipped_duplicate_tasks": 0,
+                    "plan_reused": True,
+                    "blocked_replan": True,
+                    "next_step_hint": (
+                        "Task list already exists and has not started. "
+                        "Use view_tasks to inspect the next pending task, execute it, "
+                        "then call update_tasks instead of creating a new bulk plan."
+                    ),
+                }
+                next_pending_task = _next_pending_task_payload()
+                if next_pending_task:
+                    response_data["task_creation"]["next_pending_task"] = next_pending_task
+
+                return ToolResult(success=True, output=json.dumps(response_data, indent=2))
+
+            existing_task_keys = {
+                (str(task.section_id), str(task.content).strip().lower())
+                for task in existing_tasks
+                if str(task.content).strip()
+            }
         
             created_tasks = 0
             created_sections = 0
+            skipped_duplicate_tasks = 0
+
+            if isinstance(section_tasks, dict) and isinstance(tasks, list):
+                section_name_by_id: Dict[str, str] = {}
+                if isinstance(sections, list):
+                    for section_item in sections:
+                        if not isinstance(section_item, dict):
+                            continue
+                        section_key = str(
+                            section_item.get("id")
+                            or section_item.get("section_id")
+                            or ""
+                        ).strip()
+                        section_title_value = str(
+                            section_item.get("title")
+                            or section_item.get("name")
+                            or section_item.get("section_name")
+                            or section_key
+                        ).strip()
+                        if section_key and section_title_value:
+                            section_name_by_id[section_key] = section_title_value
+
+                task_content_by_id: Dict[str, str] = {}
+                for task_item in tasks:
+                    if not isinstance(task_item, dict):
+                        continue
+                    task_key = str(task_item.get("id") or task_item.get("task_id") or "").strip()
+                    task_content = str(
+                        task_item.get("content")
+                        or task_item.get("title")
+                        or task_item.get("task")
+                        or task_item.get("description")
+                        or ""
+                    ).strip()
+                    if task_key and task_content:
+                        task_content_by_id[task_key] = task_content
+
+                normalized_sections_from_mapping: List[Dict[str, Any]] = []
+                for raw_section_id, raw_task_ids in section_tasks.items():
+                    section_id_value = str(raw_section_id).strip()
+                    section_title_value = section_name_by_id.get(section_id_value) or section_id_value or "Tasks"
+                    resolved_task_ids = self._normalize_id_list(raw_task_ids)
+                    resolved_task_contents = [
+                        task_content_by_id[task_id]
+                        for task_id in resolved_task_ids
+                        if task_id in task_content_by_id
+                    ]
+                    if resolved_task_contents:
+                        normalized_sections_from_mapping.append(
+                            {"title": section_title_value, "tasks": resolved_task_contents}
+                        )
+
+                if normalized_sections_from_mapping:
+                    sections = normalized_sections_from_mapping
+
+            if not sections and not task_contents and tasks is not None:
+                normalized_tasks_input: Any = tasks
+
+                if isinstance(normalized_tasks_input, dict):
+                    dict_sections = normalized_tasks_input.get("sections")
+                    if isinstance(dict_sections, list):
+                        sections = dict_sections
+                    else:
+                        dict_tasks = normalized_tasks_input.get("tasks")
+                        if isinstance(dict_tasks, str):
+                            try:
+                                normalized_tasks_input = json.loads(dict_tasks)
+                            except json.JSONDecodeError:
+                                normalized_tasks_input = [dict_tasks]
+                        elif isinstance(dict_tasks, list):
+                            normalized_tasks_input = dict_tasks
+
+                if isinstance(normalized_tasks_input, list) and not sections:
+                    if all(isinstance(item, str) for item in normalized_tasks_input):
+                        task_contents = [
+                            str(item).strip()
+                            for item in normalized_tasks_input
+                            if str(item).strip()
+                        ]
+                    elif all(isinstance(item, dict) for item in normalized_tasks_input):
+                        has_section_container_shape = any(
+                            isinstance(item.get("tasks"), list) for item in normalized_tasks_input
+                        )
+                        if has_section_container_shape:
+                            normalized_sections: List[Dict[str, Any]] = []
+                            for section_item in normalized_tasks_input:
+                                if not isinstance(section_item, dict):
+                                    continue
+
+                                section_title_value = str(
+                                    section_item.get("title")
+                                    or section_item.get("section_title")
+                                    or section_item.get("section_name")
+                                    or section_item.get("name")
+                                    or section_title
+                                    or "Tasks"
+                                ).strip()
+                                if not section_title_value:
+                                    section_title_value = "Tasks"
+
+                                raw_section_tasks = section_item.get("tasks")
+                                if not isinstance(raw_section_tasks, list):
+                                    continue
+
+                                normalized_task_contents: List[str] = []
+                                for raw_task in raw_section_tasks:
+                                    if isinstance(raw_task, dict):
+                                        content_value = str(
+                                            raw_task.get("content")
+                                            or raw_task.get("task")
+                                            or raw_task.get("title")
+                                            or ""
+                                        ).strip()
+                                    else:
+                                        content_value = str(raw_task).strip()
+                                    if content_value:
+                                        normalized_task_contents.append(content_value)
+
+                                if normalized_task_contents:
+                                    normalized_sections.append(
+                                        {
+                                            "title": section_title_value,
+                                            "tasks": normalized_task_contents,
+                                        }
+                                    )
+
+                            sections = normalized_sections
+                        else:
+                            section_task_groups: Dict[str, List[str]] = {}
+                            for task_item in normalized_tasks_input:
+                                content_value = str(
+                                    task_item.get("content")
+                                    or task_item.get("title")
+                                    or task_item.get("task")
+                                    or task_item.get("description")
+                                    or ""
+                                ).strip()
+                                if not content_value:
+                                    continue
+
+                                section_id_value = str(task_item.get("section_id", "")).strip()
+                                section_title_value = ""
+                                if section_id_value and section_id_value in section_map:
+                                    section_title_value = str(section_map[section_id_value].title).strip()
+                                if not section_title_value:
+                                    section_title_value = str(
+                                        task_item.get("section_title")
+                                        or task_item.get("section")
+                                        or task_item.get("section_name")
+                                        or section_title
+                                        or "Tasks"
+                                    ).strip()
+                                if not section_title_value:
+                                    section_title_value = "Tasks"
+
+                                section_task_groups.setdefault(section_title_value, []).append(content_value)
+
+                            sections = [
+                                {"title": title, "tasks": grouped_tasks}
+                                for title, grouped_tasks in section_task_groups.items()
+                                if grouped_tasks
+                            ]
+
+            def _add_task_if_needed(target_section: Section, raw_content: Any) -> None:
+                nonlocal created_tasks, skipped_duplicate_tasks
+                content = str(raw_content).strip()
+                if not content:
+                    return
+
+                key = (str(target_section.id), content.lower())
+                if key in existing_task_keys:
+                    skipped_duplicate_tasks += 1
+                    return
+
+                existing_tasks.append(Task(content=content, section_id=target_section.id))
+                existing_task_keys.add(key)
+                created_tasks += 1
       
             if sections:
                 # Batch creation across multiple sections
                 for section_data in sections:
-                    section_title_input = section_data["title"]
-                    task_list = section_data["tasks"]
+                    if not isinstance(section_data, dict):
+                        continue
+
+                    section_title_input = str(
+                        section_data.get("title")
+                        or section_data.get("section_title")
+                        or section_data.get("section_name")
+                        or section_data.get("name")
+                        or ""
+                    ).strip()
+                    if not section_title_input:
+                        continue
+
+                    task_list = section_data.get("tasks", [])
+                    if not isinstance(task_list, list):
+                        continue
                     
                     # Find or create section
                     title_lower = section_title_input.lower()
@@ -466,18 +823,43 @@ class TaskListTool(Tool):
                     else:
                         target_section = Section(title=section_title_input)
                         existing_sections.append(target_section)
+                        section_map[target_section.id] = target_section
                         title_map[title_lower] = target_section
                         created_sections += 1
                     
                     # Create tasks in this section
                     for task_content in task_list:
-                        new_task = Task(content=task_content, section_id=target_section.id)
-                        existing_tasks.append(new_task)
-                        created_tasks += 1
+                        normalized_task_content = task_content
+                        if isinstance(task_content, dict):
+                            normalized_task_content = (
+                                task_content.get("content")
+                                or task_content.get("title")
+                                or task_content.get("task")
+                                or task_content.get("description")
+                            )
+                        _add_task_if_needed(target_section, normalized_task_content)
                         
             else:
                 # 单个section创建 - 需要显式指定section
                 if not task_contents:
+                    if existing_tasks:
+                        response_data = self._format_response(existing_sections, existing_tasks)
+                        response_data["task_creation"] = {
+                            "created_sections": 0,
+                            "created_tasks": 0,
+                            "skipped_duplicate_tasks": 0,
+                            "plan_reused": True,
+                            "blocked_replan": True,
+                            "next_step_hint": (
+                                "Task list already exists. Use view_tasks to inspect pending tasks, "
+                                "then execute and call update_tasks. Do not call create_tasks with empty payload."
+                            ),
+                        }
+                        next_pending_task = _next_pending_task_payload()
+                        if next_pending_task:
+                            response_data["task_creation"]["next_pending_task"] = next_pending_task
+                        return ToolResult(success=True, output=json.dumps(response_data, indent=2))
+
                     return ToolResult(success=False, output="必须提供 'sections' 数组或 'task_contents' 与 section 信息")
                 
                 # 如果没有指定section信息，创建默认section
@@ -500,17 +882,28 @@ class TaskListTool(Tool):
                     else:
                         target_section = Section(title=section_title)
                         existing_sections.append(target_section)
+                        section_map[target_section.id] = target_section
+                        title_map[title_lower] = target_section
                         created_sections += 1
                 
                 # Create tasks
                 for content in task_contents:
-                    new_task = Task(content=content, section_id=target_section.id)
-                    existing_tasks.append(new_task)
-                    created_tasks += 1
+                    _add_task_if_needed(target_section, content)
             
             await self._save_data(existing_sections, existing_tasks)
             
             response_data = self._format_response(existing_sections, existing_tasks)
+            response_data["task_creation"] = {
+                "created_sections": created_sections,
+                "created_tasks": created_tasks,
+                "skipped_duplicate_tasks": skipped_duplicate_tasks,
+                "plan_reused": created_tasks == 0 and skipped_duplicate_tasks > 0,
+            }
+            if created_tasks == 0 and skipped_duplicate_tasks > 0:
+                response_data["task_creation"]["next_step_hint"] = (
+                    "Task list already exists. Use view_tasks to read pending tasks, "
+                    "then execute and update_tasks instead of calling create_tasks again."
+                )
             
             return ToolResult(success=True, output=json.dumps(response_data, indent=2))
             
@@ -545,7 +938,7 @@ class TaskListTool(Tool):
             logger.error(f"Error viewing tasks: {e}")
             return ToolResult(success=False, output=f"Error viewing tasks: {str(e)}")
 
-    async def update_tasks(self, task_ids: Any, content: Optional[str] = None,
+    async def update_tasks(self, task_ids: Optional[str] = None, content: Optional[str] = None,
                           status: Optional[str] = None, section_id: Optional[str] = None) -> ToolResult:
         """Update one or more tasks for project management.
 
@@ -583,20 +976,35 @@ class TaskListTool(Tool):
             ToolResult: Success with JSON string of updated task structure, or failure with error message.
         """
         try:
-            import traceback
-            
-            # 标准化 task_ids 总是一个列表
-            if isinstance(task_ids, str):
-                target_task_ids = [task_ids]
-            else:
-                target_task_ids = task_ids
-            
+            target_task_ids = self._normalize_id_list(task_ids)
             sections, tasks = await self._load_data()
+            if not target_task_ids:
+                status_value = str(status).strip().lower() if status is not None else None
+                if status_value == TaskStatus.COMPLETED.value:
+                    for task in tasks:
+                        current_status = (
+                            task.status.value
+                            if isinstance(task.status, TaskStatus)
+                            else str(task.status).strip().lower()
+                        )
+                        if current_status == TaskStatus.PENDING.value:
+                            target_task_ids = [task.id]
+                            logger.warning(
+                                "update_tasks received empty task_ids; falling back to next pending task '%s'",
+                                task.id,
+                            )
+                            break
+
+            if not target_task_ids:
+                return ToolResult(success=False, output="Must provide at least one task ID to update")
+
             section_map = {s.id: s for s in sections}
             task_map = {t.id: t for t in tasks}
+
+            target_task_ids, unresolved_task_ids = self._resolve_task_ids(target_task_ids, tasks, status)
             
             # 验证所有 task IDs 是否存在
-            missing_tasks = [tid for tid in target_task_ids if tid not in task_map]
+            missing_tasks = unresolved_task_ids or [tid for tid in target_task_ids if tid not in task_map]
             if missing_tasks:
                 return ToolResult(success=False, output=f"Task IDs not found: {missing_tasks}")
             
@@ -675,7 +1083,7 @@ class TaskListTool(Tool):
             logger.error(f"Error updating tasks: {e}")
             return ToolResult(success=False, output=f"Error updating tasks: {str(e)}")
     
-    async def delete_tasks(self, task_ids: Optional[Any] = None, section_ids: Optional[Any] = None, confirm: bool = False) -> ToolResult:
+    async def delete_tasks(self, task_ids: Optional[str] = None, section_ids: Optional[str] = None, confirm: bool = False) -> ToolResult:
         """Delete one or more tasks and/or sections for project management.
 
         This function removes tasks by their IDs and/or sections by their IDs. 
@@ -738,12 +1146,15 @@ class TaskListTool(Tool):
             ToolResult: Success with JSON string of remaining task structure, or failure with error message.
         """
         try:
+            target_task_ids = self._normalize_id_list(task_ids)
+            target_section_ids = self._normalize_id_list(section_ids)
+
             # Validate that at least one of task_ids or section_ids is provided
-            if not task_ids and not section_ids:
+            if not target_task_ids and not target_section_ids:
                 return ToolResult(success=False, output="Must provide either task_ids or section_ids")
             
             # Validate confirm parameter for section deletion
-            if section_ids and not confirm:
+            if target_section_ids and not confirm:
                 return ToolResult(success=False, output="Must set confirm=true to delete sections")
             
             sections, tasks = await self._load_data()
@@ -753,13 +1164,7 @@ class TaskListTool(Tool):
             # Process task deletions
             deleted_tasks = 0
             remaining_tasks = tasks.copy()
-            if task_ids:
-                # Normalize task_ids to always be a list
-                if isinstance(task_ids, str):
-                    target_task_ids = [task_ids]
-                else:
-                    target_task_ids = task_ids
-                
+            if target_task_ids:
                 # Validate all task IDs exist
                 missing_tasks = [tid for tid in target_task_ids if tid not in task_map]
                 if missing_tasks:
@@ -773,13 +1178,7 @@ class TaskListTool(Tool):
             # Process section deletions
             deleted_sections = 0
             remaining_sections = sections.copy()
-            if section_ids:
-                # Normalize section_ids to always be a list
-                if isinstance(section_ids, str):
-                    target_section_ids = [section_ids]
-                else:
-                    target_section_ids = section_ids
-                
+            if target_section_ids:
                 # Validate all section IDs exist
                 missing_sections = [sid for sid in target_section_ids if sid not in section_map]
                 if missing_sections:

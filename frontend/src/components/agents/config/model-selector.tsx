@@ -29,7 +29,6 @@ import { useAvailableModels } from '@/hooks/react-query/subscriptions/use-billin
 import { isLocalMode } from '@/lib/config';
 import { CustomModelDialog, CustomModelFormData } from '@/components/thread/chat-input/custom-model-dialog';
 import { PaywallDialog } from '@/components/payment/paywall-dialog';
-import { BillingModal } from '@/components/billing/billing-modal';
 import Link from 'next/link';
 
 interface CustomModel {
@@ -58,7 +57,6 @@ export function AgentModelSelector({
   // Paywall and billing states
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [lockedModel, setLockedModel] = useState<string | null>(null);
-  const [billingModalOpen, setBillingModalOpen] = useState(false);
   
   // Custom model states for local mode
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
@@ -194,10 +192,6 @@ export function AgentModelSelector({
       setLockedModel(modelId);
       setPaywallOpen(true);
     }
-  };
-
-  const handleUpgradeClick = () => {
-    setBillingModalOpen(true);
   };
 
   const closePaywallDialog = () => {
@@ -548,7 +542,7 @@ export function AgentModelSelector({
                                   <Button
                                     size="sm"
                                     className="w-full h-8 font-medium"
-                                    onClick={handleUpgradeClick}
+                                    onClick={closePaywallDialog}
                                   >
                                     Upgrade now
                                   </Button>
@@ -601,10 +595,6 @@ export function AgentModelSelector({
           cancelText="Maybe Later"
         />
       )}
-      <BillingModal
-        open={billingModalOpen}
-        onOpenChange={setBillingModalOpen}
-      />
     </div>
   );
 }

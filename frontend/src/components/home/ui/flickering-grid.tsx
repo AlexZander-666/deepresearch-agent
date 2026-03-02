@@ -323,6 +323,8 @@ export const FlickeringGrid: React.FC<FlickeringGridProps> = ({
     drawGrid,
     width,
     height,
+    canvasSize.width,
+    canvasSize.height,
     isInView,
     squareSize,
     gridGap,

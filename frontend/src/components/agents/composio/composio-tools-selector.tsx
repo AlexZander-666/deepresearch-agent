@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
@@ -129,17 +129,7 @@ export const ComposioToolsSelector: React.FC<ComposioToolsSelectorProps> = ({
     );
   }, [availableTools, searchTerm]);
 
-  useEffect(() => {
-    if (profileId) {
-      console.log('ComposioToolsSelector: Loading tools for profile', profileId);
-      loadTools();
-      if (agentId) {
-        loadCurrentAgentTools();
-      }
-    }
-  }, [profileId, agentId]);
-
-  const loadTools = async () => {
+  const loadTools = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     
@@ -160,9 +150,9 @@ export const ComposioToolsSelector: React.FC<ComposioToolsSelectorProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [profileId]);
 
-  const loadCurrentAgentTools = async () => {
+  const loadCurrentAgentTools = useCallback(async () => {
     if (!agentId) return;
     
     try {
@@ -182,7 +172,17 @@ export const ComposioToolsSelector: React.FC<ComposioToolsSelectorProps> = ({
     } catch (err) {
       console.error('ComposioToolsSelector: Failed to load current agent tools:', err);
     }
-  };
+  }, [agentId, profileId, onToolsChange]);
+
+  useEffect(() => {
+    if (profileId) {
+      console.log('ComposioToolsSelector: Loading tools for profile', profileId);
+      loadTools();
+      if (agentId) {
+        loadCurrentAgentTools();
+      }
+    }
+  }, [profileId, agentId, loadTools, loadCurrentAgentTools]);
 
   const handleToolToggle = (toolName: string) => {
     const newTools = selectedTools.includes(toolName)

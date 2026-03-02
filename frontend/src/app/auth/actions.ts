@@ -3,6 +3,7 @@
 import { existsSync } from 'node:fs';
 import { redirect } from 'next/navigation';
 import { getServerBackendUrl } from '@/lib/env';
+import { resolveSessionExpiryUnixSeconds } from '@/lib/auth/session-expiry';
 // 移除authClient导入，Server Action直接调用后端API
 
 // 移除欢迎邮件功能，简化注册流程
@@ -49,13 +50,19 @@ export async function signIn(prevState: any, formData: FormData) {
 
     // 登录成功，返回认证信息
     if (data.access_token && data.user) {
+      const expiresAt = resolveSessionExpiryUnixSeconds({
+        expires_at: data.expires_at,
+        expires_in: data.expires_in,
+        access_token: data.access_token,
+      });
+
       return { 
         success: true, 
         redirectTo: returnUrl || '/dashboard',
         authData: {
           access_token: data.access_token,
           refresh_token: data.refresh_token,
-          expires_at: data.expires_at,
+          expires_at: expiresAt,
           user: data.user
         }
       };

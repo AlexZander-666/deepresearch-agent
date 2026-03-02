@@ -6,6 +6,7 @@ import { Agent, AgentUpdateRequest, AgentsParams, createAgent, deleteAgent, getA
 import { useRef, useCallback, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DEFAULT_AGENTPRESS_TOOLS } from '@/components/agents/tools';
+import { useFeatureFlag } from '@/lib/feature-flags';
 
 export const useAgents = (
   params: AgentsParams = {},
@@ -14,22 +15,32 @@ export const useAgents = (
     'queryKey' | 'queryFn'
   >,
 ) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
+  const featureFlagEnabled = customAgentsEnabled && !customAgentsLoading;
+  const mergedOptions = {
+    ...customOptions,
+    enabled: (customOptions?.enabled ?? true) && featureFlagEnabled,
+  };
+
   return createQueryHook(
     agentKeys.list(params),
     () => getAgents(params),
     {
+      enabled: featureFlagEnabled,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
     }
-  )(customOptions);
+  )(mergedOptions);
 };
 
 export const useAgent = (agentId: string) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
+
   return createQueryHook(
     agentKeys.detail(agentId),
     () => getAgent(agentId),
     {
-      enabled: !!agentId,
+      enabled: !!agentId && customAgentsEnabled && !customAgentsLoading,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
     }
@@ -204,11 +215,13 @@ export const useAgentDeletionState = () => {
 };
 
 export const useThreadAgent = (threadId: string) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
+
   return createQueryHook(
     agentKeys.threadAgent(threadId),
     () => getThreadAgent(threadId),
     {
-      enabled: !!threadId,
+      enabled: !!threadId && customAgentsEnabled && !customAgentsLoading,
       staleTime: 5 * 60 * 1000,
       gcTime: 10 * 60 * 1000,
     }
@@ -265,11 +278,15 @@ export const useAgentBuilderChat = () => {
 };
 
 export const useAgentBuilderChatHistory = (agentId: string) =>
-  createQueryHook(
+{
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
+
+  return createQueryHook(
     agentKeys.builderChatHistory(agentId),
     () => getAgentBuilderChatHistory(agentId),
     {
-      enabled: !!agentId,
+      enabled: !!agentId && customAgentsEnabled && !customAgentsLoading,
       retry: 1,
     }
   )();
+};

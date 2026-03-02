@@ -198,7 +198,7 @@ export const ScheduleTriggerConfigForm: React.FC<ScheduleTriggerConfigFormProps>
         });
       }
     }
-  }, []);
+  }, [config, onChange]);
 
   useEffect(() => {
     if (config.cron_expression) {
@@ -212,7 +212,7 @@ export const ScheduleTriggerConfigForm: React.FC<ScheduleTriggerConfigFormProps>
     }
   }, [config.cron_expression]);
 
-  const generateCronExpression = () => {
+  const generateCronExpression = useCallback(() => {
     if (scheduleType === 'quick' && selectedPreset) {
       return selectedPreset;
     }
@@ -239,7 +239,18 @@ export const ScheduleTriggerConfigForm: React.FC<ScheduleTriggerConfigFormProps>
       return `${minute} ${hour} ${day} ${month} *`;
     }
     return config.cron_expression || '';
-  };
+  }, [
+    scheduleType,
+    selectedPreset,
+    recurringType,
+    scheduleTime,
+    selectedWeekdays,
+    selectedMonths,
+    dayOfMonth,
+    selectedDate,
+    oneTimeTime,
+    config.cron_expression,
+  ]);
 
   useEffect(() => {
     const newCron = generateCronExpression();
@@ -249,7 +260,7 @@ export const ScheduleTriggerConfigForm: React.FC<ScheduleTriggerConfigFormProps>
         cron_expression: newCron,
       });
     }
-  }, [scheduleType, selectedPreset, recurringType, selectedWeekdays, selectedMonths, dayOfMonth, scheduleTime, selectedDate, oneTimeTime]);
+  }, [scheduleType, selectedPreset, recurringType, selectedWeekdays, selectedMonths, dayOfMonth, scheduleTime, selectedDate, oneTimeTime, config, onChange, generateCronExpression]);
 
   const handlePresetSelect = (preset: QuickPreset) => {
     setSelectedPreset(preset.cron);

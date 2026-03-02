@@ -79,7 +79,7 @@ def determine_sandbox_type(files):
     logger.info("Using default desktop template")
     return 'desktop'
 from utils.constants import MODEL_NAME_ALIASES
-from utils.model_resolver import resolve_model_config
+from utils.model_resolver import apply_model_provider_override, resolve_model_config
 from flags.flags import is_enabled
 
 from .config_helper import extract_agent_config, build_unified_config, extract_tools_for_agent_run, get_mcp_configs
@@ -94,6 +94,7 @@ REDIS_RESPONSE_LIST_TTL = 3600 * 24
 
 class AgentStartRequest(BaseModel):
     model_name: Optional[str] = None  # Will be set from config.MODEL_TO_USE in the endpoint
+    model_provider: Optional[str] = None
     enable_thinking: Optional[bool] = False
     reasoning_effort: Optional[str] = 'low'
     stream: Optional[bool] = True
@@ -116,7 +117,7 @@ class MessageCreateRequest(BaseModel):
 class AgentCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
-    system_prompt: Optional[str] = None  # 确保系统提示词是可选的，允许默认使用 FuFanManus 的系统提示词
+    system_prompt: Optional[str] = None  # 确保系统提示词是可选的，允许默认使用 AlexManus 的系统提示词
     model: Optional[str] = None  # 确保模型是可选的
     configured_mcps: Optional[List[Dict[str, Any]]] = []
     custom_mcps: Optional[List[Dict[str, Any]]] = []
@@ -387,10 +388,14 @@ async def start_agent(
     # 使用配置中的模型，如果请求中没有指定
     model_name = body.model_name
     logger.info(f"Original model_name from request: {model_name}")
+    logger.info(f"Original model_provider from request: {body.model_provider}")
 
     if model_name is None:
         model_name = config.MODEL_TO_USE
         logger.info(f"Using model from config: {model_name}")
+
+    model_name = apply_model_provider_override(model_name, body.model_provider)
+    logger.info(f"Model name after provider override: {model_name}")
 
     # 获取模型别名
     resolved_model = MODEL_NAME_ALIASES.get(model_name, model_name)
@@ -478,16 +483,16 @@ async def start_agent(
     else:
         logger.info(f"No agent_id provided, querying default agent")
         logger.info(f"No agent_id provided, querying default agent")
-        # 优先查找FuFanManus默认Agent，如果没有再查找普通默认Agent
+        # 优先查找AlexManus默认Agent，如果没有再查找普通默认Agent
         # 这里查找的逻辑是可以把自定义的Agent设置成默认，如果有，则加载指定的默认Agent
-        fufanmanus_agent_result = await client.table('agents').select('*').eq('user_id', user_id).eq("metadata->>'is_fufanmanus_default'", 'true').execute()
+        AlexManus_agent_result = await client.table('agents').select('*').eq('user_id', user_id).eq("metadata->>'is_AlexManus_default'", 'true').execute()
         
-        if fufanmanus_agent_result.data:
-            logger.info(f"Found FuFanManus default agent: {len(fufanmanus_agent_result.data)} agents")
-            default_agent_result = fufanmanus_agent_result
+        if AlexManus_agent_result.data:
+            logger.info(f"Found AlexManus default agent: {len(AlexManus_agent_result.data)} agents")
+            default_agent_result = AlexManus_agent_result
         else:
             # 回退到普通默认Agent查询
-            logger.info(f"No FuFanManus agent found, querying regular default agent")
+            logger.info(f"No AlexManus agent found, querying regular default agent")
             default_agent_result = await client.schema('public').table('agents').select('*').eq('user_id', user_id).eq('is_default', True).execute()
             logger.info(f"Default agent query result: found {len(default_agent_result.data) if default_agent_result.data else 0} default agents")
         
@@ -522,31 +527,31 @@ async def start_agent(
         else:
             logger.warning(f"User {user_id} not found default agent")
             
-            # 自动创建FuFanManus默认Agent（兜底）
-            logger.info(f"Creating FuFanManus default agent for user {user_id}")
+            # 自动创建AlexManus默认Agent（兜底）
+            logger.info(f"Creating AlexManus default agent for user {user_id}")
             try:
-                from agent.fufanmanus.repository import FufanmanusAgentRepository
-                repository = FufanmanusAgentRepository()
-                agent_id = await repository.create_fufanmanus_agent(user_id)
+                from agent.alexmanus.repository import AlexManusAgentRepository
+                repository = AlexManusAgentRepository()
+                agent_id = await repository.create_AlexManus_agent(user_id)
                 
                 if agent_id:
                     # 重新查询刚创建的默认Agent
                     default_agent_result = await client.schema('public').table('agents').select('*').eq('user_id', user_id).eq('is_default', True).execute()
                     if default_agent_result.data:
                         agent_data = default_agent_result.data[0]
-                        logger.info(f"Created FuFanManus default agent: {agent_data.get('name', 'Unknown')} (ID: {agent_data.get('agent_id')})")
+                        logger.info(f"Created AlexManus default agent: {agent_data.get('name', 'Unknown')} (ID: {agent_data.get('agent_id')})")
                         
                         # 使用版本系统获取当前版本（暂时跳过）
                         version_data = None
                         agent_config = extract_agent_config(agent_data, version_data)
                         
-                        logger.info(f"Using created FuFanManus default agent: {agent_config['name']} ({agent_config['agent_id']})")
+                        logger.info(f"Using created AlexManus default agent: {agent_config['name']} ({agent_config['agent_id']})")
                     else:
-                        logger.error(f"Failed to query created FuFanManus default agent")
+                        logger.error(f"Failed to query created AlexManus default agent")
                 else:
-                    logger.error(f"FuFanManus repository returned no agent_id")
+                    logger.error(f"AlexManus repository returned no agent_id")
             except Exception as e:
-                logger.error(f"Failed to create FuFanManus default agent: {e}")
+                logger.error(f"Failed to create AlexManus default agent: {e}")
                 # 可以考虑继续执行或抛出异常，根据业务需求决定
 
     if agent_config:
@@ -572,6 +577,7 @@ async def start_agent(
         "metadata": json.dumps({
             "model_name": effective_model,
             "requested_model": model_name,
+            "model_provider": body.model_provider,
             "enable_thinking": body.enable_thinking,
             "reasoning_effort": body.reasoning_effort,
             "enable_context_manager": body.enable_context_manager
@@ -595,6 +601,7 @@ async def start_agent(
     logger.info(f"Start agent run: {agent_run_id}")
     logger.info(f"agent_config: {agent_config}")
     logger.info(f"model_name: {model_name}")
+    logger.info(f"model_provider: {body.model_provider}")
     logger.info(f"enable_thinking: {body.enable_thinking}")
     logger.info(f"reasoning_effort: {body.reasoning_effort}")
     logger.info(f"stream: {body.stream}")
@@ -1138,6 +1145,7 @@ async def generate_and_update_project_name(project_id: str, prompt: str):
 async def initiate_agent_with_files(
     prompt: str = Form(...),  
     model_name: Optional[str] = Form(None),  
+    model_provider: Optional[str] = Form(None),
     enable_thinking: Optional[bool] = Form(False),  
     reasoning_effort: Optional[str] = Form("low"),  
     stream: Optional[bool] = Form(True),  
@@ -1154,6 +1162,7 @@ async def initiate_agent_with_files(
     参数说明:
     - prompt: 用户输入的提示词
     - model_name: The name of the model to use (if None, the default model from configuration will be used)
+    - model_provider: Explicit provider toggle for DeepSeek-family models (dashscope/siliconflow)
     - enable_thinking: Whether to enable thinking mode
     - reasoning_effort: The reasoning effort (low/medium/high)
     - stream: Whether to enable streaming response
@@ -1177,6 +1186,8 @@ async def initiate_agent_with_files(
     
     # 使用统一的模型解析函数
     try:
+        requested_model_name = model_name if model_name is not None else config.MODEL_TO_USE
+        model_name = apply_model_provider_override(requested_model_name, model_provider)
         model_config = resolve_model_config(model_name)
         model_name = model_config.model_name
     except ValueError as e:
@@ -1228,13 +1239,13 @@ async def initiate_agent_with_files(
             logger.info(f"Using custom agent: {agent_config['name']} ({agent_id}) - no version data")
     else:
         logger.info(f"No agent_id provided, querying default agent")
-        # 优先查找FuFanManus默认Agent，如果没有再查找普通默认Agent
+        # 优先查找AlexManus默认Agent，如果没有再查找普通默认Agent
         # 这里查找的逻辑是可以把自定义的Agent设置成默认，如果有，则加载指定的默认Agent
-        fufanmanus_agent_result = await client.table('agents').select('*').eq('user_id', user_id).eq("metadata->>'is_fufanmanus_default'", 'true').execute()
+        AlexManus_agent_result = await client.table('agents').select('*').eq('user_id', user_id).eq("metadata->>'is_AlexManus_default'", 'true').execute()
         
-        if fufanmanus_agent_result.data:
-            logger.info(f"Found FuFanManus default agent: {len(fufanmanus_agent_result.data)} agents")
-            default_agent_result = fufanmanus_agent_result
+        if AlexManus_agent_result.data:
+            logger.info(f"Found AlexManus default agent: {len(AlexManus_agent_result.data)} agents")
+            default_agent_result = AlexManus_agent_result
         else:
             # 回退到普通默认Agent查询
             default_agent_result = await client.schema('public').table('agents').select('*').eq('user_id', user_id).eq('is_default', True).execute()
@@ -1268,31 +1279,31 @@ async def initiate_agent_with_files(
         else:
             logger.warning(f"User {user_id} not found default agent")
             
-            # 自动创建FuFanManus默认Agent（兜底）
-            logger.info(f"Creating FuFanManus default agent for user {user_id}")
+            # 自动创建AlexManus默认Agent（兜底）
+            logger.info(f"Creating AlexManus default agent for user {user_id}")
             try:
-                from agent.fufanmanus.repository import FufanmanusAgentRepository
-                repository = FufanmanusAgentRepository()
-                agent_id = await repository.create_fufanmanus_agent(user_id)
+                from agent.alexmanus.repository import AlexManusAgentRepository
+                repository = AlexManusAgentRepository()
+                agent_id = await repository.create_AlexManus_agent(user_id)
                 
                 if agent_id:
                     # 重新查询刚创建的默认Agent
                     default_agent_result = await client.schema('public').table('agents').select('*').eq('user_id', user_id).eq('is_default', True).execute()
                     if default_agent_result.data:
                         agent_data = default_agent_result.data[0]
-                        logger.info(f"Created FuFanManus default agent: {agent_data.get('name', 'Unknown')} (ID: {agent_data.get('agent_id')})")
+                        logger.info(f"Created AlexManus default agent: {agent_data.get('name', 'Unknown')} (ID: {agent_data.get('agent_id')})")
                         
                         # 使用版本系统获取当前版本（暂时跳过）
                         version_data = None
                         agent_config = extract_agent_config(agent_data, version_data)
                         
-                        logger.info(f"Using created FuFanManus default agent: {agent_config['name']} ({agent_config['agent_id']})")
+                        logger.info(f"Using created AlexManus default agent: {agent_config['name']} ({agent_config['agent_id']})")
                     else:
-                        logger.error(f"Failed to query created FuFanManus default agent")
+                        logger.error(f"Failed to query created AlexManus default agent")
                 else:
-                    logger.error(f"FuFanManus repository returned no agent_id")
+                    logger.error(f"AlexManus repository returned no agent_id")
             except Exception as e:
-                logger.error(f"Failed to create FuFanManus default agent: {e}")
+                logger.error(f"Failed to create AlexManus default agent: {e}")
                 # 可以考虑继续执行或抛出异常，根据业务需求决定
 
     # TODO：这里可以添加模型检查，比如模型是否支持访问，用户是否有模型使用权限等，在业务层前做检查
@@ -1606,6 +1617,7 @@ async def initiate_agent_with_files(
         agent_run_metadata = {
             "model_name": resolved_model,  # 使用解析后的模型名
             "requested_model": model_name,  # 保留用户原始请求
+            "model_provider": model_provider,
             "enable_thinking": enable_thinking,
             "reasoning_effort": reasoning_effort,
             "enable_context_manager": enable_context_manager
@@ -2111,7 +2123,7 @@ async def export_agent(agent_id: str, user_id: str = Depends(get_current_user_id
         export_metadata = {}
         if agent.get('metadata'):
             export_metadata = {k: v for k, v in agent['metadata'].items() 
-                             if k not in ['is_fufanmanus_default', 'centrally_managed', 'installation_date', 'last_central_update']}
+                             if k not in ['is_AlexManus_default', 'centrally_managed', 'installation_date', 'last_central_update']}
         
         export_data = {
             "tools": sanitized_config['tools'],
@@ -2291,12 +2303,12 @@ async def create_agent(
             await client.table('agents').update({"is_default": False}).eq("user_id", user_id).eq("is_default", True)
    
         # 获取默认的系统提示词和工具
-        from agent.config_helper import get_default_system_prompt_for_fufanmanus_agent
-        default_system_prompt = get_default_system_prompt_for_fufanmanus_agent()
+        from agent.config_helper import get_default_system_prompt_for_AlexManus_agent
+        default_system_prompt = get_default_system_prompt_for_AlexManus_agent()
         
         # 获取默认工具配置
-        from agent.fufanmanus.config import FufanmanusConfig
-        default_tools = FufanmanusConfig.DEFAULT_TOOLS
+        from agent.alexmanus.config import AlexManusConfig
+        default_tools = AlexManusConfig.DEFAULT_TOOLS
         
         insert_data = {
             "agent_id": str(uuid.uuid4()),
@@ -2304,7 +2316,7 @@ async def create_agent(
             "name": agent_data.name,
             "description": agent_data.description or "",
             "system_prompt": agent_data.system_prompt or default_system_prompt,
-            "model": agent_data.model or "gpt-4o",
+            "model": agent_data.model or config.MODEL_TO_USE,
             "configured_mcps": json.dumps(agent_data.configured_mcps or []),
             "custom_mcps": json.dumps(agent_data.custom_mcps or []),
             "agentpress_tools": json.dumps(agent_data.agentpress_tools or default_tools),
@@ -2329,7 +2341,7 @@ async def create_agent(
                 agent_id=agent['agent_id'],
                 user_id=user_id,
                 system_prompt=agent_data.system_prompt or default_system_prompt,
-                model=agent_data.model or "gpt-4o",
+                model=agent_data.model or config.MODEL_TO_USE,
                 configured_mcps=agent_data.configured_mcps or [],
                 custom_mcps=agent_data.custom_mcps or [],
                 agentpress_tools=agent_data.agentpress_tools or default_tools,
@@ -2440,55 +2452,55 @@ async def update_agent(
         existing_data = existing_agent.data
 
         agent_metadata = existing_data.get('metadata', {})
-        is_fufanmanus_agent = agent_metadata.get('is_fufanmanus_default', False)
+        is_AlexManus_agent = agent_metadata.get('is_AlexManus_default', False)
         restrictions = agent_metadata.get('restrictions', {})
         
-        if is_fufanmanus_agent:
-            logger.warning(f"Update attempt on FuFanManus default agent {agent_id} by user {user_id}")
+        if is_AlexManus_agent:
+            logger.warning(f"Update attempt on AlexManus default agent {agent_id} by user {user_id}")
             
             if (agent_data.name is not None and 
                 agent_data.name != existing_data.get('name') and 
                 restrictions.get('name_editable') == False):
-                logger.error(f"User {user_id} attempted to modify restricted name of FuFanManus agent {agent_id}")
+                logger.error(f"User {user_id} attempted to modify restricted name of AlexManus agent {agent_id}")
                 raise HTTPException(
                     status_code=403, 
-                    detail="FuFanManus's name cannot be modified. This restriction is managed centrally."
+                    detail="AlexManus's name cannot be modified. This restriction is managed centrally."
                 )
             
             if (agent_data.description is not None and
                 agent_data.description != existing_data.get('description') and 
                 restrictions.get('description_editable') == False):
-                logger.error(f"User {user_id} attempted to modify restricted description of FuFanManus agent {agent_id}")
+                logger.error(f"User {user_id} attempted to modify restricted description of AlexManus agent {agent_id}")
                 raise HTTPException(
                     status_code=403, 
-                    detail="FuFanManus's description cannot be modified."
+                    detail="AlexManus's description cannot be modified."
                 )
             
             if (agent_data.system_prompt is not None and 
                 restrictions.get('system_prompt_editable') == False):
-                logger.error(f"User {user_id} attempted to modify restricted system prompt of FuFanManus agent {agent_id}")
+                logger.error(f"User {user_id} attempted to modify restricted system prompt of AlexManus agent {agent_id}")
                 raise HTTPException(
                     status_code=403, 
-                    detail="FuFanManus's system prompt cannot be modified. This is managed centrally to ensure optimal performance."
+                    detail="AlexManus's system prompt cannot be modified. This is managed centrally to ensure optimal performance."
                 )
             
             if (agent_data.agentpress_tools is not None and 
                 restrictions.get('tools_editable') == False):
-                logger.error(f"User {user_id} attempted to modify restricted tools of FuFanManus agent {agent_id}")
+                logger.error(f"User {user_id} attempted to modify restricted tools of AlexManus agent {agent_id}")
                 raise HTTPException(
                     status_code=403, 
-                    detail="FuFanManus's default tools cannot be modified. These tools are optimized for FuFanManus's capabilities."
+                    detail="AlexManus's default tools cannot be modified. These tools are optimized for AlexManus's capabilities."
                 )
             
             if ((agent_data.configured_mcps is not None or agent_data.custom_mcps is not None) and 
                 restrictions.get('mcps_editable') == False):
-                logger.error(f"User {user_id} attempted to modify restricted MCPs of FuFanManus agent {agent_id}")
+                logger.error(f"User {user_id} attempted to modify restricted MCPs of AlexManus agent {agent_id}")
                 raise HTTPException(
                     status_code=403, 
-                    detail="FuFanManus's integrations cannot be modified."
+                    detail="AlexManus's integrations cannot be modified."
                 )
             
-            logger.info(f"FuFanManus agent update validation passed for agent {agent_id} by user {user_id}")
+            logger.info(f"AlexManus agent update validation passed for agent {agent_id} by user {user_id}")
 
         current_version_data = None
         if existing_data.get('current_version_id'):
@@ -2776,8 +2788,8 @@ async def delete_agent(agent_id: str, user_id: str = Depends(get_current_user_id
         if agent['is_default']:
             raise HTTPException(status_code=400, detail="Cannot delete default agent")
         
-        if agent.get('metadata', {}).get('is_fufanmanus_default', False):
-            raise HTTPException(status_code=400, detail="Cannot delete FuFanManus default agent")
+        if agent.get('metadata', {}).get('is_AlexManus_default', False):
+            raise HTTPException(status_code=400, detail="Cannot delete AlexManus default agent")
         
         delete_result = await client.table('agents').delete().eq('agent_id', agent_id).execute()
         
@@ -4170,7 +4182,7 @@ async def upload_agent_profile_image(
         logger.error(f"Failed to upload agent profile image for user {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload profile image")
 
-async def _create_adk_session_if_not_exists(client, user_id: str, session_id: str, app_name: str = "fufanmanus"):
+async def _create_adk_session_if_not_exists(client, user_id: str, session_id: str, app_name: str = "AlexManus"):
     """如果ADK session不存在则创建"""
     try:
         # 检查session是否已存在
@@ -4202,7 +4214,7 @@ async def _create_adk_session_if_not_exists(client, user_id: str, session_id: st
         logger.error(f"Create ADK session failed: {e}")
         raise
 
-async def _log_adk_user_message_event(client, user_id: str, message_content: str, session_id: str, message_id: str, app_name: str = "fufanmanus"):
+async def _log_adk_user_message_event(client, user_id: str, message_content: str, session_id: str, message_id: str, app_name: str = "AlexManus"):
     """记录用户消息事件到ADK events表"""
     try:
         import uuid
@@ -4252,7 +4264,7 @@ async def _log_adk_user_message_event(client, user_id: str, message_content: str
         logger.error(f"Record user message event failed: {e}")
         raise
 
-async def _log_adk_agent_response_event(client, user_id: str, response_content: str, session_id: str, model_name: str, app_name: str = "fufanmanus"):
+async def _log_adk_agent_response_event(client, user_id: str, response_content: str, session_id: str, model_name: str, app_name: str = "AlexManus"):
     """记录AI代理回复事件到ADK events表"""
     try:
         import uuid
@@ -4440,15 +4452,26 @@ def _format_messages_from_table(messages):
         try:
             content = assistant_msg.get('content', {})
             if isinstance(content, str):
-                content = json.loads(content)
+                try:
+                    content = json.loads(content)
+                except Exception:
+                    content = {}
+
+            if not isinstance(content, dict):
+                continue
             
-            tool_calls = content.get('tool_calls', [])
+            tool_calls = content.get('tool_calls')
+            if not isinstance(tool_calls, list):
+                continue
+
             for tool_call in tool_calls:
+                if not isinstance(tool_call, dict):
+                    continue
                 tool_call_id = tool_call.get('id')
                 if tool_call_id:
                     tool_call_to_assistant[tool_call_id] = assistant_msg.get('message_id')
         except Exception as e:
-            logger.warning(f"parse assistant message content failed: {e}")
+            logger.debug(f"skip assistant tool-call mapping parse error: {e}")
     
     # 更新tool消息的assistant_message_id
     updated_tool_count = 0

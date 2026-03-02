@@ -30,6 +30,7 @@ export default async function Image() {
             background: 'black',
           }}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element -- OpenGraph generation runs in ImageResponse, not a browser page render. */}
           <img
             src={`${baseUrl}/meta.png`}
             alt={alt}

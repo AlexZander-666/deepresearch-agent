@@ -203,6 +203,13 @@ class Configuration:
     OPENAI_API_KEY: Optional[str] = None
     DEEPSEEK_API_KEY: Optional[str] = None
     DEEPSEEK_API_BASE: Optional[str] = "https://api.deepseek.com"
+    SILICONFLOW_API_KEY: Optional[str] = None
+    SILICONFLOW_API_BASE: Optional[str] = "https://api.siliconflow.cn/v1"
+    SILICONFLOW_TEXT_MODEL: Optional[str] = "deepseek-ai/DeepSeek-V3.2"
+    SILICONFLOW_MODEL_URL: Optional[str] = "https://cloud.siliconflow.cn/models?target=deepseek-ai/DeepSeek-V3.2"
+    QWEN_API_KEY: Optional[str] = None
+    QWEN_API_BASE: Optional[str] = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    QWEN_TEXT_MODEL: Optional[str] = "deepseek-v3.2"
     OLLAMA_API_KEY: Optional[str] = None
     GROQ_API_KEY: Optional[str] = None
     OPENROUTER_API_KEY: Optional[str] = None
@@ -210,8 +217,8 @@ class Configuration:
     MORPH_API_KEY: Optional[str] = None
     GEMINI_API_KEY: Optional[str] = None
     OPENROUTER_API_BASE: Optional[str] = "https://openrouter.ai/api/v1"
-    OR_SITE_URL: Optional[str] = "https://fufanmanus.com"
-    OR_APP_NAME: Optional[str] = "Fufanmanus"
+    OR_SITE_URL: Optional[str] = "https://AlexManus.com"
+    OR_APP_NAME: Optional[str] = "AlexManus"
     
     # AWS Bedrock credentials
     AWS_ACCESS_KEY_ID: Optional[str] = None
@@ -219,7 +226,7 @@ class Configuration:
     AWS_REGION_NAME: Optional[str] = None
     
     # Model configuration
-    MODEL_TO_USE: Optional[str] = "deepseek/deepseek-chat-v3.1"
+    MODEL_TO_USE: Optional[str] = "deepseek-v3.2"
     
     # Supabase configuration (optional for simple auth testing)
     SUPABASE_URL: Optional[str] = None
@@ -299,12 +306,12 @@ class Configuration:
     STRIPE_PRODUCT_ID_STAGING: str = 'prod_SCgIj3G7yPOAWY'
     
     # Sandbox configuration
-    SANDBOX_IMAGE_NAME = "fufan/manus:0.1"
+    SANDBOX_IMAGE_NAME = "Alex/manus:0.1"
     
     # 🔧 PPIP/E2B 沙箱配置已在上面定义，此处移除重复
     
     # 保留原配置以供回退
-    SANDBOX_SNAPSHOT_NAME: str = "fufan/manus:0.1"  # Deprecated - Daytona 快照名
+    SANDBOX_SNAPSHOT_NAME: str = "Alex/manus:0.1"  # Deprecated - Daytona 快照名
     SANDBOX_ENTRYPOINT = "/usr/bin/supervisord -n -c /etc/supervisor/conf.d/supervisord.conf"
 
     # LangFuse configuration

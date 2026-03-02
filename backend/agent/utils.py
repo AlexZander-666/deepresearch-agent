@@ -162,15 +162,15 @@ async def check_agent_count_limit(client, account_id: str) -> Dict[str, Any]:
         # 提取 Agent 信息
         agents_result = await client.table('agents').select('agent_id, metadata').eq('user_id', account_id).execute()
         
-        non_fufanmanus_agents = []
+        non_AlexManus_agents = []
         for agent in agents_result.data or []:
             metadata = agent.get('metadata', {}) or {}
-            is_fufanmanus_default = metadata.get('is_fufanmanus_default', False)
-            if not is_fufanmanus_default:
-                non_fufanmanus_agents.append(agent)
+            is_AlexManus_default = metadata.get('is_AlexManus_default', False)
+            if not is_AlexManus_default:
+                non_AlexManus_agents.append(agent)
                 
-        current_count = len(non_fufanmanus_agents)
-        logger.debug(f"Account {account_id} has {current_count} custom agents (excluding Fufanmanus defaults)")
+        current_count = len(non_AlexManus_agents)
+        logger.debug(f"Account {account_id} has {current_count} custom agents (excluding AlexManus defaults)")
         
 
         # TODO: 可以根据消费金额、用户授权等做Agent的创建限制

@@ -1,0 +1,29 @@
+{
+  "case": "deep",
+  "thread_id": "04aac13f-09e6-4038-b1bd-24c68b9cea00",
+  "anchor_created_at": "2026-03-02T06:04:31.090212+00:00",
+  "scoped_message_count": 26,
+  "thread_run_ids": [
+    "ba2f0b92-8b5a-4f48-8d16-556246e9eafa",
+    "50bd242e-9378-44e6-8da0-fe804088c0a9",
+    "be23d4d3-51d3-4c97-a512-fcf9301d566f"
+  ],
+  "tool_summary": {
+    "view_tasks": {
+      "completed": 1,
+      "failed": 0,
+      "error": 0
+    },
+    "create_tasks": {
+      "completed": 0,
+      "failed": 2,
+      "error": 0
+    }
+  },
+  "assistant_count": 6,
+  "final_assistant_synthetic": "web_search_fallback_summary",
+  "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- Tasks\n- REST Resource: tasks | Google for Developers\n- 开发者的测试复盘：架构分层测试策略与工具链闭环设计实战-CSDN博客\n\n三、工具执行记录\n- web_search",
+  "synthetic_kinds_in_scope": [
+    "web_search_fallback_summary"
+  ]
+}

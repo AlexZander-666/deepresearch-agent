@@ -1,0 +1,56 @@
+[
+  {
+    "case": "deep",
+    "thread_id": "04aac13f-09e6-4038-b1bd-24c68b9cea00",
+    "run_id": "31a4692d-a2a1-4e5a-8022-a3fd584ab979",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:00:13.618711+00:00",
+    "scoped_message_count": 7,
+    "thread_run_ids": [
+      "86cf36a0-a3b5-4b4d-8088-55d3b450b1ad"
+    ],
+    "tool_summary": {},
+    "assistant_count": 2,
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- GitHub 15.8k star 狂涨 DeerFlow，AI + 搜索 + 报告输出一次搞定！ - 小华同学ai - 博客园\n- 【Agent】DeerFlow Researcher：系统架构与执行流程（基于真实 Trace 深度解析）\n- 批量推理--火山方舟大模型服务平台 - 火山引擎\n\n三、工具执行记录\n- web_search：提取到 5 条候选来源。\n- computer-use/sandbox screenshot：本次未捕获到可用截图证据。\n\n四、参考来源\n1. GitHub 15.8k star 狂涨 DeerFlow，AI + 搜索 + 报告输出一次搞定！ - 小华同学ai - 博客园 - https://www.cnblogs.com/xiaohuatongxueai/p/19061542\n2. 【Agent】"
+  },
+  {
+    "case": "browser",
+    "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+    "run_id": "8e33003f-7591-487a-8cfe-196dbc3c889b",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:01:13.146987+00:00",
+    "scoped_message_count": 7,
+    "thread_run_ids": [
+      "a96aaf74-d855-4e57-ae36-ccac9b02e8bf"
+    ],
+    "tool_summary": {},
+    "assistant_count": 2,
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- 快速上手：LangChain + AgentRun 浏览器沙箱极简集成指南 - 博客园\n- 一文读懂browser-use，使用DeepSeek 操作你的浏览器\n- Agent Browser + Chrome Dev Tools 组合自动化测试教程\n\n三、工具执行记录\n- web_search：提取到 5 条候选来源。\n- computer-use/sandbox screenshot：本次未捕获到可用截图证据。\n\n四、参考来源\n1. 快速上手：LangChain + AgentRun 浏览器沙箱极简集成指南 - 博客园 - https://www.cnblogs.com/Serverless/p/19458033\n2. 一文读懂browser-use，使用DeepSeek 操作你的浏览器 - https://deepseek.cs"
+  },
+  {
+    "case": "sandbox",
+    "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+    "run_id": "e2e981fa-9b6e-404c-b9a4-48a54608432b",
+    "status": "completed",
+    "anchor_created_at": "2026-03-02T07:01:25.609638+00:00",
+    "scoped_message_count": 6,
+    "thread_run_ids": [
+      "7dd65c3b-13e6-45ff-9f3c-1e53aaf5bf55"
+    ],
+    "tool_summary": {},
+    "assistant_count": 2,
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- 快速上手：LangChain + AgentRun 浏览器沙箱极简集成指南 - 博客园\n- 内置工具集参考含参数说明-无影Agent 开发套件AgentBay-阿里云 - 文档\n- AIO Sandbox：为AI Agent 打造的一体化、可定制的沙箱环境原创\n\n三、工具执行记录\n- web_search：提取到 5 条候选来源。\n- computer-use/sandbox screenshot：本次未捕获到可用截图证据。\n\n四、参考来源\n1. 快速上手：LangChain + AgentRun 浏览器沙箱极简集成指南 - 博客园 - https://www.cnblogs.com/Serverless/p/19458033\n2. 内置工具集参考含参数说明-无影Agent 开发套件AgentBay-阿里云 - 文档 - https:"
+  }
+]

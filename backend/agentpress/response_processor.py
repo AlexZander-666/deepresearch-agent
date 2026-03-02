@@ -12,6 +12,7 @@ import json
 import re
 import uuid
 import asyncio
+import os
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, AsyncGenerator, Tuple, Union, Callable, Literal
 from dataclasses import dataclass
@@ -42,6 +43,121 @@ XmlAddingStrategy = Literal["user_message", "assistant_message", "inline_edit"]
 
 # Type alias for tool execution strategy
 ToolExecutionStrategy = Literal["sequential", "parallel"]
+
+_MISSING_TOOLS_DICT_FUNCTION_PATTERN = re.compile(
+    r"Function\s+(.*?)\s+is not found in the tools_dict\.",
+    re.IGNORECASE,
+)
+
+_RECOVERABLE_STREAMING_ERROR_MARKERS = (
+    "apiconnectionerror",
+    "server disconnected",
+    "connection reset",
+    "connection aborted",
+    "remote end closed connection",
+    "temporarily unavailable",
+    "connection timed out",
+)
+
+_REPEATED_STREAM_GUARD_TOOL_NAMES = {
+    "view_tasks",
+    "create_tasks",
+    "update_tasks",
+    "web_search",
+    "screenshot",
+    "scrape_webpage",
+    "browser_navigate_to",
+    "move_to",
+    "click",
+}
+
+_REPEATED_STREAM_GUARD_TOOL_LIMITS = {
+    "create_tasks": 1,
+    "view_tasks": 2,
+    "update_tasks": 2,
+    "web_search": 2,
+    "screenshot": 3,
+    "scrape_webpage": 1,
+    "browser_navigate_to": 2,
+    "move_to": 3,
+    "click": 3,
+}
+
+
+def _extract_missing_tools_dict_function_name(error_message: str) -> Optional[str]:
+    """
+    Extract the missing function name from ADK tools_dict errors.
+
+    Returns:
+        - function name string (can be empty when ADK emits malformed blank call)
+        - None when message is not a tools_dict missing-function error
+    """
+    if not isinstance(error_message, str):
+        return None
+    match = _MISSING_TOOLS_DICT_FUNCTION_PATTERN.search(error_message)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _is_recoverable_streaming_error(error_message: str) -> bool:
+    """Best-effort classification for transient provider/connection streaming failures."""
+    if not isinstance(error_message, str):
+        return False
+    normalized = error_message.lower()
+    return any(marker in normalized for marker in _RECOVERABLE_STREAMING_ERROR_MARKERS)
+
+
+def _should_stop_repeated_stream_tool_call(
+    *,
+    function_name: str,
+    per_tool_counts: Dict[str, int],
+    max_calls_per_tool: int,
+    guarded_tool_names: Optional[set[str]] = None,
+    per_tool_limits: Optional[Dict[str, int]] = None,
+) -> bool:
+    """Stop repeated low-value tool calls inside a single stream run."""
+    if not isinstance(function_name, str):
+        return False
+    normalized_function_name = function_name.strip()
+    if not normalized_function_name:
+        return False
+    if max_calls_per_tool <= 0:
+        return False
+
+    target_tool_names = guarded_tool_names or _REPEATED_STREAM_GUARD_TOOL_NAMES
+    if normalized_function_name not in target_tool_names:
+        return False
+
+    effective_max_calls = max_calls_per_tool
+    limits_map = per_tool_limits or _REPEATED_STREAM_GUARD_TOOL_LIMITS
+    raw_limit = limits_map.get(normalized_function_name) if isinstance(limits_map, dict) else None
+    if isinstance(raw_limit, int) and raw_limit > 0:
+        effective_max_calls = min(max_calls_per_tool, raw_limit)
+
+    current_count = per_tool_counts.get(normalized_function_name, 0)
+    if current_count >= effective_max_calls:
+        return True
+
+    per_tool_counts[normalized_function_name] = current_count + 1
+    return False
+
+
+def _is_tool_call_allowed(
+    *,
+    function_name: str,
+    allowed_function_names: Optional[set[str]],
+) -> bool:
+    """Check if a tool call is allowed in the current gated toolset."""
+    if not isinstance(function_name, str):
+        return False
+    normalized_function_name = function_name.strip()
+    if not normalized_function_name:
+        return False
+    if allowed_function_names is None:
+        return True
+    return normalized_function_name in allowed_function_names
+
 
 @dataclass
 class ToolExecutionContext:
@@ -81,6 +197,7 @@ class ProcessorConfig:
     tool_execution_strategy: ToolExecutionStrategy = "sequential"
     xml_adding_strategy: XmlAddingStrategy = "assistant_message"
     max_xml_tool_calls: int = 0  # 0 means no limit
+    allowed_function_names: Optional[set[str]] = None
     
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -92,6 +209,16 @@ class ProcessorConfig:
         
         if self.max_xml_tool_calls < 0:
             raise ValueError("max_xml_tool_calls must be a non-negative integer (0 = no limit)")
+
+        if self.allowed_function_names is not None:
+            normalized_allowed: set[str] = set()
+            for raw_name in self.allowed_function_names:
+                if not isinstance(raw_name, str):
+                    continue
+                normalized_name = raw_name.strip()
+                if normalized_name:
+                    normalized_allowed.add(normalized_name)
+            self.allowed_function_names = normalized_allowed
 
 class ResponseProcessor:
     """Processes LLM responses, extracting and executing tool calls."""
@@ -113,6 +240,7 @@ class ResponseProcessor:
         self.is_agent_builder = is_agent_builder
         self.target_agent_id = target_agent_id
         self.agent_config = agent_config
+        self._current_allowed_function_names: Optional[set[str]] = None
 
     async def _yield_message(self, message_obj: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Helper to yield a message with proper formatting.
@@ -321,6 +449,20 @@ class ResponseProcessor:
         processed_tool_call_ids = set() # 跟踪已处理的工具调用ID，避免重复处理
         tool_call_to_assistant_id_map = {} # 记录每个tool_call_id对应的独立assistant_message_id
         saved_text_segments = [] # 记录已保存的文本段落，用于去重检测
+        repeated_stream_tool_call_counts: Dict[str, int] = {}
+        try:
+            max_same_tool_calls_per_stream = max(
+                1,
+                int(os.getenv("MAX_SAME_TOOL_CALLS_PER_STREAM", "3")),
+            )
+        except ValueError:
+            max_same_tool_calls_per_stream = 3
+
+        self._current_allowed_function_names = (
+            set(config.allowed_function_names)
+            if config.allowed_function_names is not None
+            else None
+        )
         
 
         # ┌─────────────┐
@@ -564,7 +706,7 @@ class ResponseProcessor:
                     # "message_id": "ac724d9e-b5fe-4120-94ee-5e5941f5cc3b", UUID 格式，确保全局唯一
                     # "type": "assistant",
                     # "role": "assistant",
-                    # "content": "{\"role\": \"assistant\", \"content\": \"你好！我在的，我是 FuFanManus...(完整内容)\", \"tool_calls\": null}",
+                    # "content": "{\"role\": \"assistant\", \"content\": \"你好！我在的，我是 AlexManus...(完整内容)\", \"tool_calls\": null}",
                     # "metadata": "{\"thread_run_id\": \"b946ab55-801f-45ee-b283-a9bf7f9b8530\", \"stream_status\": \"complete\"}",
                     # "is_llm_message": true
                     # }
@@ -824,41 +966,58 @@ class ResponseProcessor:
                                 # 处理工具调用
                                 if function_call_parts:     
                                     for index, part in enumerate(function_call_parts):
+                                        if (
+                                            config.max_xml_tool_calls > 0
+                                            and xml_tool_call_count >= config.max_xml_tool_calls
+                                        ):
+                                            finish_reason = "xml_tool_limit_reached"
+                                            logger.info(
+                                                "Reached tool call limit (%s) during streaming; stopping further tool calls in this run.",
+                                                config.max_xml_tool_calls,
+                                            )
+                                            break
+
                                         call = part.function_call
-                                        
-                                        # ADK去重检查：避免重复处理同一个工具调用
-                                        tool_call_id = getattr(call, 'id', None)
-                                        if tool_call_id in processed_tool_call_ids:
-                                            logger.info(f"Skipping duplicate ADK function_call: tool_call_id={tool_call_id}")
+                                        raw_data = call.model_dump() if hasattr(call, 'model_dump') else {}
+                                        function_name = (raw_data.get('name') if raw_data else getattr(call, 'name', None)) or ''
+                                        function_name = function_name.strip()
+                                        if not function_name:
+                                            logger.warning(
+                                                f"Skipping ADK function_call with empty name: tool_call_id={getattr(call, 'id', None)}, index={index}"
+                                            )
                                             continue
-                                        
-                                        processed_tool_call_ids.add(tool_call_id)
-                                        # 定义基本数据结构
-                                        tool_call_data_chunk = {}
-                                        
-                                        # 构建工具调用的数据结构
-                                        if hasattr(call, 'model_dump'):
-                                            raw_data = call.model_dump()
-                                            tool_call_data_chunk = {
-                                                'id': raw_data.get('id', ''),
-                                                'index': index, 
-                                                'type': 'function',
-                                                'function': {
-                                                    'name': raw_data.get('name', ''),
-                                                    'arguments': to_json_string(raw_data.get('args', {}))
-                                                }
+
+                                        if _should_stop_repeated_stream_tool_call(
+                                            function_name=function_name,
+                                            per_tool_counts=repeated_stream_tool_call_counts,
+                                            max_calls_per_tool=max_same_tool_calls_per_stream,
+                                        ):
+                                            finish_reason = "xml_tool_limit_reached"
+                                            logger.info(
+                                                "Reached repeated stream tool-call guard for %s (limit=%s); stopping further tool calls in this run.",
+                                                function_name,
+                                                max_same_tool_calls_per_stream,
+                                            )
+                                            break
+
+                                        raw_tool_call_id = (raw_data.get('id') if raw_data else getattr(call, 'id', None))
+                                        tool_call_id = raw_tool_call_id or f"adk-call-{uuid.uuid4()}"
+                                        if raw_tool_call_id and raw_tool_call_id in processed_tool_call_ids:
+                                            logger.info(f"Skipping duplicate ADK function_call: tool_call_id={raw_tool_call_id}")
+                                            continue
+                                        if raw_tool_call_id:
+                                            processed_tool_call_ids.add(raw_tool_call_id)
+
+                                        function_args = raw_data.get('args', {}) if raw_data else getattr(call, 'args', {})
+                                        tool_call_data_chunk = {
+                                            'id': tool_call_id,
+                                            'index': index,
+                                            'type': 'function',
+                                            'function': {
+                                                'name': function_name,
+                                                'arguments': to_json_string(function_args)
                                             }
-                                        else:
-                                            # 手动构建OpenAI兼容格式
-                                            tool_call_data_chunk = {
-                                                'id': call.id,
-                                                'index': index,  
-                                                'type': 'function',
-                                                'function': {
-                                                    'name': call.name,
-                                                    'arguments': to_json_string(call.args)
-                                                }
-                                            }
+                                        }
                                 
                                         now_tool_chunk = datetime.now(timezone.utc).isoformat()
                                         
@@ -993,6 +1152,7 @@ class ResponseProcessor:
                                             "tool_index": tool_index, 
                                             "context": context
                                         })
+                                        xml_tool_call_count += 1
                                         tool_index += 1  # 只有在成功添加新工具时才递增
                                         # logger.info(f"pending_tool_executions: {pending_tool_executions}")
 
@@ -1113,8 +1273,60 @@ class ResponseProcessor:
                         break
 
 
-                    
+
             #  -------- 流式循环的后处理工作 --------
+            if pending_tool_executions:
+                for execution in pending_tool_executions:
+                    context = execution.get("context")
+                    if not context:
+                        continue
+
+                    tool_call_id = (
+                        context.tool_call.get("id")
+                        if isinstance(context.tool_call, dict)
+                        else None
+                    )
+                    if tool_call_id and tool_call_id in immediately_processed_tools:
+                        continue
+                    if context.result is not None:
+                        continue
+
+                    try:
+                        context.result = await self._execute_tool(context.tool_call)
+                        saved_tool_result_object = await self._add_tool_result(
+                            thread_id,
+                            context.tool_call,
+                            context.result,
+                            config.xml_adding_strategy,
+                            context.assistant_message_id,
+                            context.parsing_details,
+                        )
+                        completed_msg_obj = await self._yield_and_save_tool_completed(
+                            context,
+                            str(saved_tool_result_object["message_id"]) if saved_tool_result_object else None,
+                            thread_id,
+                            thread_run_id,
+                        )
+                        if completed_msg_obj:
+                            yield format_for_yield(completed_msg_obj)
+                        if saved_tool_result_object:
+                            yield format_for_yield(saved_tool_result_object)
+                            if tool_call_id:
+                                immediately_processed_tools.add(tool_call_id)
+                    except Exception as pending_tool_error:
+                        context.error = pending_tool_error
+                        logger.error(
+                            f"Failed to execute pending streamed tool call during post-processing: {pending_tool_error}",
+                            exc_info=True,
+                        )
+                        error_msg_obj = await self._yield_and_save_tool_error(
+                            context,
+                            thread_id,
+                            thread_run_id,
+                        )
+                        if error_msg_obj:
+                            yield format_for_yield(error_msg_obj)
+
             # 如果模型接口没有返回使用数据，则使用litellm.token_counter计算
             logger.info(f"before calculate usage, streaming_metadata: {streaming_metadata}")
             if streaming_metadata["usage"]["total_tokens"] == 0:
@@ -1442,20 +1654,81 @@ class ResponseProcessor:
                     )
 
         except Exception as e:
-            logger.error(f"Error processing ADK streaming response: {str(e)}", exc_info=True)
+            error_message = str(e)
+            missing_function_name = _extract_missing_tools_dict_function_name(error_message)
+
+            if missing_function_name is not None:
+                # ADK can emit stale/malformed function calls when tools were gated or duplicated.
+                # Preserve UX by finishing already-collected valid pending tools instead of
+                # failing the whole run with "... is not found in the tools_dict.".
+                logger.warning(
+                    "Ignoring unavailable ADK function call (%s) and attempting to finish valid pending tools",
+                    missing_function_name or "<empty>",
+                )
+                self.trace.event(
+                    name="ignored_unavailable_adk_function_call",
+                    level="WARNING",
+                    status_message=error_message,
+                )
+
+                for execution in pending_tool_executions:
+                    context = execution.get("context")
+                    if not context:
+                        continue
+                    try:
+                        if context.result is None:
+                            context.result = await self._execute_tool(context.tool_call)
+
+                        saved_tool_result_object = await self._add_tool_result(
+                            thread_id,
+                            context.tool_call,
+                            context.result,
+                            config.xml_adding_strategy,
+                            context.assistant_message_id,
+                            context.parsing_details,
+                        )
+                        completed_msg_obj = await self._yield_and_save_tool_completed(
+                            context,
+                            str(saved_tool_result_object["message_id"]) if saved_tool_result_object else None,
+                            thread_id,
+                            thread_run_id,
+                        )
+                        if completed_msg_obj:
+                            yield format_for_yield(completed_msg_obj)
+                        if saved_tool_result_object:
+                            yield format_for_yield(saved_tool_result_object)
+                    except Exception as fallback_error:
+                        logger.error(
+                            f"Failed to execute pending tool during unavailable-call fallback: {fallback_error}",
+                            exc_info=True,
+                        )
+                return
+
+            is_recoverable_stream_error = _is_recoverable_streaming_error(error_message)
+            log_fn = logger.warning if is_recoverable_stream_error else logger.error
+            trace_level = "WARNING" if is_recoverable_stream_error else "ERROR"
+            trace_name = (
+                "recoverable_error_processing_adk_stream"
+                if is_recoverable_stream_error
+                else "error_processing_adk_stream"
+            )
+
+            log_fn(f"Error processing ADK streaming response: {error_message}", exc_info=True)
             self.trace.event(
-                name="error_processing_adk_stream",
-                level="ERROR",
-                status_message=f"Error processing ADK streaming response: {str(e)}"
+                name=trace_name,
+                level=trace_level,
+                status_message=f"Error processing ADK streaming response: {error_message}"
             )
             err_msg_obj = await self.add_message(
                 thread_id=thread_id, type="status",
-                content={"role": "system", "status_type": "error", "message": str(e)},
+                content={"role": "system", "status_type": "error", "message": error_message},
                 is_llm_message=False, metadata={"thread_run_id": thread_run_id if 'thread_run_id' in locals() else None}
             )
             if err_msg_obj:
                 yield format_for_yield(err_msg_obj)
-            raise
+
+            # Do not re-raise: let upper run-loop decide deterministic fallback summary.
+            return
 
         finally:
             # Update continuous state or close run
@@ -1479,6 +1752,7 @@ class ResponseProcessor:
                         level="ERROR",
                         status_message=f"Error in finally block: {str(final_e)}"
                     )
+            self._current_allowed_function_names = None
 
     async def process_non_streaming_response(
         self,
@@ -1544,10 +1818,16 @@ class ResponseProcessor:
                              all_tool_data.extend(parsed_xml_data)
 
                      if config.native_tool_calling and hasattr(response_message, 'tool_calls') and response_message.tool_calls:
-                          for tool_call in response_message.tool_calls:
-                             if hasattr(tool_call, 'function'):
+                           for tool_call in response_message.tool_calls:
+                              if hasattr(tool_call, 'function'):
+                                 function_name = (tool_call.function.name or "").strip()
+                                 if not function_name:
+                                     logger.warning(
+                                         f"Skipping non-streaming tool call with empty function name: tool_call_id={getattr(tool_call, 'id', None)}"
+                                     )
+                                     continue
                                  exec_tool_call = {
-                                     "function_name": tool_call.function.name,
+                                     "function_name": function_name,
                                      "arguments": safe_json_parse(tool_call.function.arguments) if isinstance(tool_call.function.arguments, str) else tool_call.function.arguments,
                                      "id": tool_call.id if hasattr(tool_call, 'id') else str(uuid.uuid4())
                                  }
@@ -1555,7 +1835,7 @@ class ResponseProcessor:
                                  native_tool_calls_for_message.append({
                                      "id": exec_tool_call["id"], "type": "function",
                                      "function": {
-                                         "name": tool_call.function.name,
+                                         "name": function_name,
                                          "arguments": tool_call.function.arguments if isinstance(tool_call.function.arguments, str) else to_json_string(tool_call.function.arguments)
                                      }
                                  })
@@ -1852,6 +2132,23 @@ class ResponseProcessor:
 
             logger.info(f"Executing tool: {function_name} with arguments: {arguments}")
             self.trace.event(name="executing_tool", level="DEFAULT", status_message=(f"Executing tool: {function_name} with arguments: {arguments}"))
+
+            if not _is_tool_call_allowed(
+                function_name=function_name,
+                allowed_function_names=self._current_allowed_function_names,
+            ):
+                logger.warning(
+                    "Blocked tool call '%s' because it is not in current allowed toolset: %s",
+                    function_name,
+                    sorted(self._current_allowed_function_names)
+                    if isinstance(self._current_allowed_function_names, set)
+                    else "ALL",
+                )
+                span.end(status_message="tool_blocked_by_gating", level="WARNING")
+                return ToolResult(
+                    success=False,
+                    output=f"Tool function '{function_name}' is not available in current run",
+                )
             
             if isinstance(arguments, str):
                 try:
@@ -1861,6 +2158,12 @@ class ResponseProcessor:
             
             # Get available functions from tool registry
             available_functions = self.tool_registry.get_available_functions()
+            if isinstance(self._current_allowed_function_names, set):
+                available_functions = {
+                    name: fn
+                    for name, fn in available_functions.items()
+                    if name in self._current_allowed_function_names
+                }
             
             # Look up the function by name
             tool_fn = available_functions.get(function_name)

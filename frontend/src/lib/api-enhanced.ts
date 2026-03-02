@@ -335,14 +335,24 @@ export const agentApi = {
     threadId: string,
     options?: {
       model_name?: string;
+      model_provider?: 'dashscope' | 'siliconflow';
       enable_thinking?: boolean;
       reasoning_effort?: string;
       stream?: boolean;
     }
   ): Promise<{ agent_run_id: string } | null> {
+    const normalizedOptions = {
+      ...options,
+      model_name:
+        options?.model_name === 'deepseek-chat' ||
+        options?.model_name === 'deepseek/deepseek-chat'
+          ? 'deepseek-v3.2'
+          : options?.model_name,
+    };
+
     const result = await backendApi.post(
       `/thread/${threadId}/agent/start`,
-      options,
+      normalizedOptions,
       {
         errorContext: { operation: 'start agent', resource: 'AI assistant' },
         timeout: 60000,

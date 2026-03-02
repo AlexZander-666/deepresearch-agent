@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   getBackendUrl,
+  isClientDebugLoggingEnabled,
+  isLocalEnvMode,
+  isTelemetryEnabled,
   getPublicEnv,
   getServerBackendUrl,
   normalizePublicEnvValue,
@@ -79,5 +82,60 @@ test('getServerBackendUrl does not rewrite non-local hosts in docker mode', () =
   assert.equal(
     getServerBackendUrl(env, { isDocker: true }),
     'https://example.com/api',
+  );
+});
+
+test('isLocalEnvMode detects local and development values', () => {
+  assert.equal(
+    isLocalEnvMode({ NEXT_PUBLIC_ENV_MODE: 'LOCAL' } as NodeJS.ProcessEnv),
+    true,
+  );
+  assert.equal(
+    isLocalEnvMode({ NEXT_PUBLIC_ENV_MODE: 'development' } as NodeJS.ProcessEnv),
+    true,
+  );
+  assert.equal(
+    isLocalEnvMode({ NEXT_PUBLIC_ENV_MODE: 'production' } as NodeJS.ProcessEnv),
+    false,
+  );
+});
+
+test('isClientDebugLoggingEnabled defaults to false unless explicitly enabled', () => {
+  assert.equal(isClientDebugLoggingEnabled({} as NodeJS.ProcessEnv), false);
+  assert.equal(
+    isClientDebugLoggingEnabled({ NEXT_PUBLIC_DEBUG_LOGS: 'false' } as NodeJS.ProcessEnv),
+    false,
+  );
+  assert.equal(
+    isClientDebugLoggingEnabled({ NEXT_PUBLIC_DEBUG_LOGS: 'true' } as NodeJS.ProcessEnv),
+    true,
+  );
+});
+
+test('isTelemetryEnabled is disabled in local mode by default', () => {
+  assert.equal(
+    isTelemetryEnabled({ NEXT_PUBLIC_ENV_MODE: 'LOCAL' } as NodeJS.ProcessEnv),
+    false,
+  );
+  assert.equal(
+    isTelemetryEnabled({ NEXT_PUBLIC_ENV_MODE: 'PRODUCTION' } as NodeJS.ProcessEnv),
+    true,
+  );
+});
+
+test('isTelemetryEnabled respects explicit override', () => {
+  assert.equal(
+    isTelemetryEnabled({
+      NEXT_PUBLIC_ENV_MODE: 'LOCAL',
+      NEXT_PUBLIC_ENABLE_ANALYTICS: 'true',
+    } as NodeJS.ProcessEnv),
+    true,
+  );
+  assert.equal(
+    isTelemetryEnabled({
+      NEXT_PUBLIC_ENV_MODE: 'PRODUCTION',
+      NEXT_PUBLIC_ENABLE_ANALYTICS: 'false',
+    } as NodeJS.ProcessEnv),
+    false,
   );
 });

@@ -2,6 +2,17 @@ import { createClient } from '@/lib/supabase/client';
 import { handleApiError } from './error-handler';
 import posthog from 'posthog-js';
 import { BACKEND_URL } from './env';
+import { debugLog } from './client-logger';
+import {
+  DASHSCOPE_MODEL_ID,
+  SILICONFLOW_SELECTOR_MODEL_ID,
+  normalizeModelIdForRequest,
+} from './model-provider';
+import {
+  buildSafeJsonBody,
+  normalizePathForRequest,
+  preprocessOutgoingText,
+} from './request-json';
 
 // Get backend URL from environment variables
 const API_URL = BACKEND_URL;
@@ -776,6 +787,13 @@ export const addUserMessage = async (
       );
     }
 
+    const normalizedContent = preprocessOutgoingText(content);
+    if (normalizedContent !== content && /\brg\b/.test(content)) {
+      debugLog(
+        '[addUserMessage] Normalized rg search paths to avoid duplicate matches from overlapping file and directory targets.',
+      );
+    }
+
     // Call backend API to add user message
     const response = await fetch(`${API_URL}/threads/${threadId}/messages`, {
       method: 'POST',
@@ -783,10 +801,13 @@ export const addUserMessage = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify({
-        content: content,
-        type: 'user'
-      }),
+      body: buildSafeJsonBody(
+        {
+          content: normalizedContent,
+          type: 'user',
+        },
+        { normalizeText: true },
+      ),
       cache: 'no-store',
     });
 
@@ -796,7 +817,7 @@ export const addUserMessage = async (
       );
     }
 
-    console.log('✅ [addUserMessage] User message sent to backend successfully');
+    debugLog('✅ [addUserMessage] User message sent to backend successfully');
   } catch (error: any) {
     console.error('❌ [addUserMessage] Error adding user message:', error);
     handleApiError(error, { operation: 'add message', resource: 'message' });
@@ -806,7 +827,7 @@ export const addUserMessage = async (
 
 export const getMessages = async (threadId: string): Promise<Message[]> => {
   try {
-    console.log('🚀 [getMessages] API调用开始:', {
+    debugLog('🚀 [getMessages] API调用开始:', {
       threadId,
       API_URL,
       timestamp: new Date().toISOString()
@@ -828,7 +849,7 @@ export const getMessages = async (threadId: string): Promise<Message[]> => {
     }
 
     const apiUrl = `${API_URL}/threads/${threadId}/messages`;
-    console.log('🌐 [getMessages] 调用API URL:', apiUrl);
+    debugLog('🌐 [getMessages] 调用API URL:', apiUrl);
 
     const response = await fetch(apiUrl, {
       method: 'GET',
@@ -846,7 +867,7 @@ export const getMessages = async (threadId: string): Promise<Message[]> => {
     }
 
     const data = await response.json();
-    console.log('📡 [getMessages] API响应数据:', {
+    debugLog('📡 [getMessages] API响应数据:', {
       status: response.status,
       statusText: response.statusText,
       responseType: typeof data,
@@ -860,19 +881,19 @@ export const getMessages = async (threadId: string): Promise<Message[]> => {
     // 提取消息数组
     if (Array.isArray(data)) {
       messages = data;
-      console.log('📨 [getMessages] 使用直接数组格式');
+      debugLog('📨 [getMessages] 使用直接数组格式');
     } else if (data && Array.isArray(data.messages)) {
       messages = data.messages;
-      console.log('📨 [getMessages] 使用data.messages格式');
+      debugLog('📨 [getMessages] 使用data.messages格式');
     } else if (data && Array.isArray(data.data)) {
       messages = data.data;
-      console.log('📨 [getMessages] 使用data.data格式');
+      debugLog('📨 [getMessages] 使用data.data格式');
     } else {
       console.warn('Messages API returned unexpected format:', data);
       return [];
     }
     
-    console.log('📊 [getMessages] 提取的消息统计:', {
+    debugLog('📊 [getMessages] 提取的消息统计:', {
       totalCount: messages.length,
       messageTypes: messages.reduce((acc: any, msg: any) => {
         acc[msg.type] = (acc[msg.type] || 0) + 1;
@@ -899,8 +920,8 @@ export const getMessages = async (threadId: string): Promise<Message[]> => {
       event_id: msg.event_id, // 保留原有字段
     }));
     
-    console.log('🔍 [getMessages] 原始数据:', messages);
-    console.log('🔍 [getMessages] 映射后数据:', mappedMessages);
+    debugLog('🔍 [getMessages] 原始数据:', messages);
+    debugLog('🔍 [getMessages] 映射后数据:', mappedMessages);
     
     return mappedMessages;
   } catch (error) {
@@ -978,6 +999,7 @@ export const startAgent = async (
   threadId: string,
   options?: {
     model_name?: string;
+    model_provider?: 'dashscope' | 'siliconflow';
     enable_thinking?: boolean;
     reasoning_effort?: string;
     stream?: boolean;
@@ -1002,20 +1024,28 @@ export const startAgent = async (
     }
 
     const defaultOptions = {
-      model_name: 'claude-3-7-sonnet-latest',
+      model_name: 'deepseek-v3.2',
       enable_thinking: false,
       reasoning_effort: 'low',
       stream: true,
     };
 
     const finalOptions = { ...defaultOptions, ...options };
+    const normalizedModelName = normalizeModelIdForRequest(
+      finalOptions.model_name || DASHSCOPE_MODEL_ID,
+      finalOptions.model_provider,
+    );
 
     const body: any = {
-      model_name: finalOptions.model_name,
+      model_name: normalizedModelName,
       enable_thinking: finalOptions.enable_thinking,
       reasoning_effort: finalOptions.reasoning_effort,
       stream: finalOptions.stream,
     };
+
+    if (finalOptions.model_provider) {
+      body.model_provider = finalOptions.model_provider;
+    }
     
     // Only include agent_id if it's provided
     if (finalOptions.agent_id) {
@@ -1028,7 +1058,7 @@ export const startAgent = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify(body),
+      body: buildSafeJsonBody(body),
     });
 
     if (!response.ok) {
@@ -1476,11 +1506,12 @@ export const createSandboxFile = async (
 
     // Use FormData to handle both text and binary content more reliably
     const formData = new FormData();
-    formData.append('path', filePath);
+    const normalizedPath = normalizePathForRequest(filePath);
+    formData.append('path', normalizedPath);
 
     // Create a Blob from the content string and append as a file
     const blob = new Blob([content], { type: 'application/octet-stream' });
-    formData.append('file', blob, filePath.split('/').pop() || 'file');
+    formData.append('file', blob, normalizedPath.split('/').pop() || 'file');
 
     const headers: Record<string, string> = {};
     if (session?.access_token) {
@@ -1540,9 +1571,9 @@ export const createSandboxFileJson = async (
       {
         method: 'POST',
         headers,
-        body: JSON.stringify({
+        body: buildSafeJsonBody({
           path: filePath,
-          content: content,
+          content,
         }),
       },
     );
@@ -1573,12 +1604,13 @@ export const createSandboxFileJson = async (
 function normalizePathWithUnicode(path: string): string {
   try {
     // Replace escaped Unicode sequences with actual characters
-    return path.replace(/\\u([0-9a-fA-F]{4})/g, (_, hexCode) => {
+    const unicodeNormalized = path.replace(/\\u([0-9a-fA-F]{4})/g, (_, hexCode) => {
       return String.fromCharCode(parseInt(hexCode, 16));
     });
+    return normalizePathForRequest(unicodeNormalized);
   } catch (e) {
     console.error('Error processing Unicode escapes in path:', e);
-    return path;
+    return normalizePathForRequest(path);
   }
 }
 
@@ -2003,12 +2035,21 @@ export interface UsageLogsResponse {
 }
 
 export interface BillingStatusResponse {
+  status?: string;
   can_run: boolean;
   message: string;
+  limits?: {
+    daily_cost_limit: number;
+    monthly_cost_limit: number;
+    daily_usage: number;
+    monthly_usage: number;
+  };
   subscription: {
-    price_id: string;
+    status?: string;
+    price_id?: string;
     plan_name: string;
     minutes_limit?: number;
+    current_period_end?: number | null;
   };
 }
 
@@ -2016,6 +2057,11 @@ export interface Model {
   id: string;
   display_name: string;
   short_name?: string;
+  created_by?: string;
+  model_id?: string;
+  vision_enabled?: boolean;
+  supports_thinking?: boolean;
+  max_thinking_tokens?: number;
   requires_subscription?: boolean;
   is_available?: boolean;
   input_cost_per_million_tokens?: number | null;
@@ -2110,7 +2156,7 @@ export const createCheckoutSession = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify(requestBody),
+      body: buildSafeJsonBody(requestBody),
     });
 
     if (!response.ok) {
@@ -2174,7 +2220,7 @@ export const createPortalSession = async (
         'Content-Type': 'application/json',
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify(request),
+      body: buildSafeJsonBody(request),
     });
 
     if (!response.ok) {
@@ -2201,7 +2247,7 @@ export const createPortalSession = async (
 
 export const getSubscription = async (): Promise<SubscriptionStatus> => {
   // 暂时不调用后端API，直接返回默认的无订阅状态
-  console.log('Billing API temporarily disabled - returning default subscription status');
+  debugLog('Billing API temporarily disabled - returning default subscription status');
   return {
     status: 'no_subscription',
     plan_name: undefined,
@@ -2217,7 +2263,7 @@ export const getSubscription = async (): Promise<SubscriptionStatus> => {
 
 export const getSubscriptionCommitment = async (subscriptionId: string): Promise<CommitmentInfo> => {
   // 暂时不调用后端API，直接返回默认的承诺信息
-  console.log('Billing commitment API temporarily disabled - returning default commitment info');
+  debugLog('Billing commitment API temporarily disabled - returning default commitment info');
   return {
     has_commitment: false,
     commitment_type: undefined,
@@ -2229,15 +2275,15 @@ export const getSubscriptionCommitment = async (subscriptionId: string): Promise
 
 export const getAvailableModels = async (): Promise<AvailableModelsResponse> => {
   // 暂时不调用后端API，直接返回默认的模型列表
-  console.log('Available models API temporarily disabled - returning default models');
+  debugLog('Available models API temporarily disabled - returning default models');
   return {
     models: [
       {
-        id: 'deepseek-chat',
-        short_name: 'deepseek-chat',
-        display_name: 'DeepSeek Chat',
+        id: DASHSCOPE_MODEL_ID,
+        short_name: DASHSCOPE_MODEL_ID,
+        display_name: 'DeepSeek V3.2 (DashScope)',
         created_by: 'DeepSeek',
-        model_id: 'deepseek-chat',
+        model_id: DASHSCOPE_MODEL_ID,
         requires_subscription: false,
         vision_enabled: false,
         input_cost_per_million_tokens: 0.000000150,
@@ -2247,73 +2293,32 @@ export const getAvailableModels = async (): Promise<AvailableModelsResponse> => 
         is_available: true
       },
       {
-        id: 'claude-sonnet-4',
-        short_name: 'claude-sonnet-4',
-        display_name: 'Claude Sonnet 4',
-        created_by: 'Anthropic',
-        model_id: 'claude-sonnet-4',
-        requires_subscription: true,
-        vision_enabled: true,
-        input_cost_per_million_tokens: 0.000003000,
-        output_cost_per_million_tokens: 0.000015000,
-        supports_thinking: true,
-        max_thinking_tokens: 4000,
-        is_available: true
-      },
-      {
-        id: 'gpt-4o',
-        short_name: 'gpt-4o',
-        display_name: 'GPT-4o',
-        created_by: 'OpenAI',
-        model_id: 'gpt-4o',
-        requires_subscription: true,
-        vision_enabled: true,
-        input_cost_per_million_tokens: 0.000002500,
-        output_cost_per_million_tokens: 0.000010000,
-        supports_thinking: false,
-        max_thinking_tokens: 0,
-        is_available: true
-      },
-      {
-        id: 'gpt-4o-mini',
-        short_name: 'gpt-4o-mini',
-        display_name: 'GPT-4o Mini',
-        created_by: 'OpenAI',
-        model_id: 'gpt-4o-mini',
+        id: 'deepseek-ai/DeepSeek-V3.2',
+        short_name: SILICONFLOW_SELECTOR_MODEL_ID,
+        display_name: 'DeepSeek V3.2 (SiliconFlow)',
+        created_by: 'DeepSeek',
+        model_id: 'deepseek-ai/DeepSeek-V3.2',
         requires_subscription: false,
-        vision_enabled: true,
+        vision_enabled: false,
         input_cost_per_million_tokens: 0.000000150,
         output_cost_per_million_tokens: 0.000000600,
         supports_thinking: false,
         max_thinking_tokens: 0,
-        is_available: true
+        is_available: true,
       },
-      {
-        id: 'gpt-3.5-turbo',
-        short_name: 'gpt-3.5-turbo',
-        display_name: 'GPT-3.5 Turbo',
-        created_by: 'OpenAI',
-        model_id: 'gpt-3.5-turbo',
-        requires_subscription: false,
-        vision_enabled: false,
-        input_cost_per_million_tokens: 0.000000500,
-        output_cost_per_million_tokens: 0.000001500,
-        supports_thinking: false,
-        max_thinking_tokens: 0,
-        is_available: true
-      }
     ],
     subscription_tier: 'free',
-    total_models: 5
+    total_models: 2
   };
 };
 
 
 export const checkBillingStatus = async (): Promise<BillingStatusResponse> => {
   // 暂时不调用后端API，直接返回默认的计费状态
-  console.log('Billing status API temporarily disabled - returning default status');
+  debugLog('Billing status API temporarily disabled - returning default status');
   return {
     status: 'healthy',
+    can_run: true,
     message: 'Billing system is temporarily disabled',
     limits: {
       daily_cost_limit: 1000,
@@ -2418,8 +2423,9 @@ export interface TranscriptionResponse {
 // Transcription API Functions
 export const transcribeAudio = async (audioFile: File): Promise<TranscriptionResponse> => {
   // 暂时不调用后端API，直接返回模拟的转录结果
-  console.log('Transcription API temporarily disabled - returning mock transcription');
+  debugLog('Transcription API temporarily disabled - returning mock transcription');
   return {
     text: "This is a mock transcription result. Please implement the actual transcription API."
   };
 };
+

@@ -10,7 +10,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import {
-  BillingError,
   AgentRunLimitError,
 } from '@/lib/api';
 import { useInitiateAgentMutation } from '@/hooks/react-query/dashboard/use-initiate-agent';
@@ -18,12 +17,8 @@ import { useThreadQuery } from '@/hooks/react-query/threads/use-threads';
 import { generateThreadName } from '@/lib/actions/threads';
 import { useAgents } from '@/hooks/react-query/agents/use-agents';
 
-import { BillingErrorAlert } from '@/components/billing/usage-limit-alert';
-import { useBillingError } from '@/hooks/useBillingError';
-import { useAccounts } from '@/hooks/use-accounts';
 import { isLocalMode, config } from '@/lib/config';
 import { toast } from 'sonner';
-import { useModal } from '@/hooks/use-modal-store';
 import { ChatInput, ChatInputHandles } from '@/components/thread/chat-input/chat-input';
 import { normalizeFilenameToNFC } from '@/lib/utils/unicode';
 import { createQueryHook } from '@/hooks/use-query';
@@ -51,11 +46,6 @@ export function HeroSection() {
   const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>();
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const { billingError, handleBillingError, clearBillingError } =
-    useBillingError();
-  const { data: accounts } = useAccounts();
-  const personalAccount = accounts?.find((account) => account.personal_account);
-  const { onOpen } = useModal();
   const initiateAgentMutation = useInitiateAgentMutation();
   const [initiatedThreadId, setInitiatedThreadId] = useState<string | null>(null);
   const threadQuery = useThreadQuery(initiatedThreadId || '');
@@ -134,7 +124,11 @@ export function HeroSection() {
   // Handle ChatInput submission
   const handleChatInputSubmit = async (
     message: string,
-    options?: { model_name?: string; enable_thinking?: boolean }
+    options?: {
+      model_name?: string;
+      model_provider?: 'dashscope' | 'siliconflow';
+      enable_thinking?: boolean;
+    }
   ) => {
     if ((!message.trim() && !chatInputRef.current?.getPendingFiles().length) || isSubmitting) return;
 
@@ -166,6 +160,7 @@ export function HeroSection() {
       });
 
       if (options?.model_name) formData.append('model_name', options.model_name);
+      if (options?.model_provider) formData.append('model_provider', options.model_provider);
       formData.append('enable_thinking', String(options?.enable_thinking ?? false));
       formData.append('reasoning_effort', 'low');
       formData.append('stream', 'true');
@@ -182,9 +177,7 @@ export function HeroSection() {
       chatInputRef.current?.clearPendingFiles();
       setInputValue('');
     } catch (error: any) {
-      if (error instanceof BillingError) {
-        onOpen("paymentRequiredDialog");
-      } else if (error instanceof AgentRunLimitError) {
+      if (error instanceof AgentRunLimitError) {
         const { running_thread_ids, running_count } = error.detail;
         
         setAgentLimitData({
@@ -300,7 +293,7 @@ export function HeroSection() {
               <span className="text-secondary">AI 工作团队.</span>
             </h1>
             <p className="text-base md:text-lg text-center text-muted-foreground font-medium text-balance leading-relaxed tracking-tight max-w-2xl px-2">
-            FuFanManus - 从人工到 AI 迁移的最简单方式.
+            AlexManus - 从人工到 AI 迁移的最简单方式.
             </p>
           </div>
 
@@ -335,19 +328,6 @@ export function HeroSection() {
 
       </div>
         <div className="mb-8 sm:mb-16 sm:mt-32 mx-auto"></div>
-
-
-
-      {/* Add Billing Error Alert here */}
-      <BillingErrorAlert
-        message={billingError?.message}
-        currentUsage={billingError?.currentUsage}
-        limit={billingError?.limit}
-        accountId={personalAccount?.account_id}
-        onDismiss={clearBillingError}
-        isOpen={!!billingError}
-      />
-
       {agentLimitData && (
         <AgentRunLimitDialog
           open={showAgentLimitDialog}

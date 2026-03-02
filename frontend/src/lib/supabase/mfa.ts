@@ -34,7 +34,6 @@ export const supabaseMFAService = {
     issuer?: string;
     friendlyName?: string;
   }): Promise<MFAEnrollResponse> {
-    console.log('Mock MFA enroll called - no authentication system');
     return {
       data: null,
       error: { message: 'MFA not available in local mode' }
@@ -45,7 +44,6 @@ export const supabaseMFAService = {
   async challenge(params: {
     factorId: string;
   }): Promise<MFAChallengeResponse> {
-    console.log('Mock MFA challenge called - no authentication system');
     return {
       data: null,
       error: { message: 'MFA not available in local mode' }
@@ -58,7 +56,6 @@ export const supabaseMFAService = {
     challengeId: string;
     code: string;
   }): Promise<MFAVerifyResponse> {
-    console.log('Mock MFA verify called - no authentication system');
     return {
       data: null,
       error: { message: 'MFA not available in local mode' }
@@ -70,7 +67,6 @@ export const supabaseMFAService = {
     factorId: string;
     code: string;
   }): Promise<MFAVerifyResponse> {
-    console.log('Mock MFA challengeAndVerify called - no authentication system');
     return {
       data: null,
       error: { message: 'MFA not available in local mode' }
@@ -79,7 +75,6 @@ export const supabaseMFAService = {
 
   // 获取已注册的MFA因子
   async listFactors(): Promise<MFAEnrollResponse> {
-    console.log('Mock MFA listFactors called - no authentication system');
     return {
       data: [],
       error: null
@@ -90,7 +85,6 @@ export const supabaseMFAService = {
   async unenroll(params: {
     factorId: string;
   }): Promise<MFAUnenrollResponse> {
-    console.log('Mock MFA unenroll called - no authentication system');
     return {
       data: null,
       error: { message: 'MFA not available in local mode' }
@@ -99,7 +93,6 @@ export const supabaseMFAService = {
 
   // 获取认证保证级别
   async getAuthenticatorAssuranceLevel(): Promise<MFALevelResponse> {
-    console.log('Mock MFA getAuthenticatorAssuranceLevel called - no authentication system');
     return {
       data: { currentLevel: null, nextLevel: null },
       error: null
@@ -110,7 +103,6 @@ export const supabaseMFAService = {
   async sendPhoneChallenge(params: {
     phone: string;
   }): Promise<MFAChallengeResponse> {
-    console.log('Mock phone challenge called - no authentication system');
     return {
       data: null,
       error: { message: 'Phone verification not available in local mode' }
@@ -121,7 +113,6 @@ export const supabaseMFAService = {
     phone: string;
     token: string;
   }): Promise<MFAVerifyResponse> {
-    console.log('Mock phone verify called - no authentication system');
     return {
       data: null,
       error: { message: 'Phone verification not available in local mode' }

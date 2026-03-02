@@ -348,6 +348,7 @@ const CardAvatar: React.FC<{ isSunaAgent?: boolean; profileImageUrl?: string; ag
   }
   if (profileImageUrl) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element -- Agent avatars are user-provided external URLs and not bounded to configured domains.
       <img src={profileImageUrl} alt="Agent" className="h-14 w-14 rounded-2xl object-cover" />
     );
   }

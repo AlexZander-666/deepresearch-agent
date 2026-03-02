@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogTrigger,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -58,6 +59,9 @@ export function KortixEnterpriseModal({
         <DialogTitle className="sr-only">
           Enterprise AI Implementation - Schedule Consultation
         </DialogTitle>
+        <DialogDescription className="sr-only">
+          Schedule a strategy session with Kortix solution architects for enterprise AI implementation.
+        </DialogDescription>
         <div className="grid grid-cols-1 lg:grid-cols-2 h-[700px] lg:h-[800px]">
           {/* Enhanced Info Panel */}
           <div className="p-6 lg:p-8 flex flex-col bg-white dark:bg-black relative h-full overflow-y-auto border-r border-gray-200 dark:border-gray-800">
@@ -66,9 +70,10 @@ export function KortixEnterpriseModal({
                 <Image
                   src={isDarkMode ? '/kortix-logo-white.svg' : '/kortix-logo.svg'}
                   alt="Kortix Logo"
-                  width={80}
-                  height={28}
-                  className="h-7 w-[80px]"
+                  width={800}
+                  height={175}
+                  className="h-7 w-auto"
+                  style={{ width: 'auto' }}
                 />
               </div>
 

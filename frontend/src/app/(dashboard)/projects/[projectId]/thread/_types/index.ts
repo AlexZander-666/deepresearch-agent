@@ -28,6 +28,7 @@ export interface StreamingToolCall {
   arguments?: string;
   index?: number;
   xml_tag_name?: string;
+  status_type?: string;
 }
 
 export interface BillingData {

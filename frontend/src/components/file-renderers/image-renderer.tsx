@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -292,3 +293,4 @@ export function ImageRenderer({ url, className }: ImageRendererProps) {
     </div>
   );
 }
+

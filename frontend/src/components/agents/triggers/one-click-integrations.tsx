@@ -45,7 +45,7 @@ export const OneClickIntegrations: React.FC<OneClickIntegrationsProps> = ({
 
   useEffect(() => {
     handleCallback();
-  }, []);
+  }, [handleCallback]);
 
   const handleInstall = async (provider: ProviderKey) => {
     if (provider === 'schedule') {

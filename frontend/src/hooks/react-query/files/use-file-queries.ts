@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthProvider';
 import { listSandboxFiles, type FileInfo } from '@/lib/api';
+import { normalizePathForRequest } from '@/lib/request-json';
 
 // Re-export FileCache utilities for compatibility
 export { FileCache } from '@/hooks/use-cached-file';
@@ -11,6 +12,7 @@ export { FileCache } from '@/hooks/use-cached-file';
  */
 function normalizePath(path: string): string {
   if (!path) return '/workspace';
+  path = normalizePathForRequest(path);
   
   // Ensure path starts with /workspace
   if (!path.startsWith('/workspace')) {
@@ -348,20 +350,21 @@ export function useCachedFile<T = string>(
     contentType: mappedContentType,
     staleTime: options.expiration,
   });
+  const processFn = options.processFn;
   
   // Process data if processFn is provided
   const processedData = React.useMemo(() => {
-    if (!query.data || !options.processFn) {
+    if (!query.data || !processFn) {
       return query.data as T;
     }
     
     try {
-      return options.processFn(query.data);
+      return processFn(query.data);
     } catch (error) {
       console.error('Error processing file data:', error);
       return null;
     }
-  }, [query.data, options.processFn]);
+  }, [query.data, processFn]);
   
   return {
     data: processedData,

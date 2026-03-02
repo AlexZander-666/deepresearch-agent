@@ -106,6 +106,53 @@ class LLMRetryError(LLMError):
     """Exception raised when retries are exhausted."""
     pass
 
+def _extract_adk_metadata(messages: List[Dict[str, Any]]) -> Dict[str, Optional[str]]:
+    """Pick the best user-message metadata for ADK session binding.
+
+    Temporary recovery prompts may be injected as user messages without metadata.
+    This scorer prefers user messages that include explicit session/account context.
+    """
+    default_metadata: Dict[str, Optional[str]] = {
+        "app_name": "AlexManus",
+        "user_id": "default_user",
+        "session_id": "default_session",
+        "thread_id": None,
+    }
+
+    best_score = -1
+    best_metadata = default_metadata
+
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+
+        app_name = message.get("app_name") or "AlexManus"
+        user_id = message.get("user_id") or "default_user"
+        session_id = message.get("session_id") or "default_session"
+        thread_id = message.get("thread_id")
+
+        score = 0
+        if session_id != "default_session":
+            score += 4
+        if user_id != "default_user":
+            score += 3
+        if thread_id:
+            score += 2
+        if app_name and app_name != "AlexManus":
+            score += 1
+
+        # Keep the latest message when scores tie.
+        if score >= best_score:
+            best_score = score
+            best_metadata = {
+                "app_name": str(app_name),
+                "user_id": str(user_id),
+                "session_id": str(session_id),
+                "thread_id": str(thread_id) if thread_id is not None else None,
+            }
+
+    return best_metadata
+
 def setup_api_keys() -> None:
     """Set up API keys from environment variables."""
     providers = ['OPENAI', 'ANTHROPIC', 'GROQ', 'OPENROUTER', 'XAI', 'MORPH', 'GEMINI']
@@ -444,7 +491,7 @@ async def make_llm_api_call(
 
 async def make_adk_api_call(
     messages: List[Dict[str, Any]],
-    model_name: str = "openai/gpt-4o",
+    model_name: str = "deepseek-v3.2",
     temperature: float = 0,
     max_tokens: Optional[int] = None,
     tools: Optional[Union[List[Dict[str, Any]], Dict[str, callable], List]] = None, 
@@ -478,18 +525,22 @@ async def make_adk_api_call(
         if msg.get('user_id'):
             logger.info(f"metadata: user_id={msg.get('user_id')}, session_id={msg.get('session_id')}, thread_id={msg.get('thread_id')}")
 
-    # 提取元数据
-    for message in messages:
-        if isinstance(message, dict) and message.get('role') == 'user':
-            app_name = message.get('app_name', 'fufanmanus')
-            user_id = message.get('user_id', 'default_user')
-            session_id = message.get('session_id', 'default_session')
-            thread_id = message.get('thread_id')  # 提取thread_id
-            logger.info(f"From adk events: app_name={app_name}, user_id={user_id}, session_id={session_id}, thread_id={thread_id}")
-                        
-            # 设置session_id到上下文中，供ADK回调使用
-            current_session_id_context.set(session_id)
-            break
+    # 提取元数据（优先使用携带真实 session/account 的用户消息，避免临时消息把上下文降级到 default_session）
+    metadata = _extract_adk_metadata(messages)
+    app_name = metadata["app_name"] or "AlexManus"
+    user_id = metadata["user_id"] or "default_user"
+    session_id = metadata["session_id"] or "default_session"
+    thread_id = metadata["thread_id"]
+    logger.info(
+        "From adk events: app_name=%s, user_id=%s, session_id=%s, thread_id=%s",
+        app_name,
+        user_id,
+        session_id,
+        thread_id,
+    )
+
+    # 设置session_id到上下文中，供ADK回调使用
+    current_session_id_context.set(session_id)
 
     # 获取用户消息内容
     user_message = None
@@ -569,7 +620,7 @@ async def make_adk_api_call(
     logger.info(f"Model created successfully: model={resolved_model}, provider={provider}")
 
     # 提取 system_prompt
-    agent_instruction = "你是 FuFanManus，请根据用户的问题给出回答。"  # 默认值
+    agent_instruction = "你是 AlexManus，请根据用户的问题给出回答。"  # 默认值
     
     # 遍历 messages：在传入的 messages 列表中查找 role='system' 的消息
     for msg in messages:
@@ -635,7 +686,7 @@ async def make_adk_api_call(
             if hasattr(config, 'DATABASE_URL') and config.DATABASE_URL:
                 DATABASE_URL = config.DATABASE_URL
             else:
-                DATABASE_URL = "postgresql://postgres:password@localhost:5432/fufanmanus"
+                DATABASE_URL = "postgresql://postgres:password@localhost:5432/AlexManus"
         # 为了日志安全，隐藏密码
         from urllib.parse import urlparse, urlunparse
         parsed_url = urlparse(DATABASE_URL)

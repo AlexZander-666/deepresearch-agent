@@ -1,14 +1,11 @@
 'use client';
 
-import posthog from 'posthog-js';
 import { useEffect } from 'react';
+import { debugLog } from '@/lib/client-logger';
 
 export const PostHogIdentify = () => {
   useEffect(() => {
-    // 移除认证追踪，使用匿名分析
-    console.log('PostHog tracking without authentication');
-    // 可选：设置匿名用户ID
-    // posthog.identify('anonymous-user', { mode: 'local' });
+    debugLog('PostHog tracking without authentication');
   }, []);
 
   return null;

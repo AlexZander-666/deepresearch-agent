@@ -2,7 +2,7 @@
 
 import { initiateAgent, InitiateAgentResponse, BillingError, AgentRunLimitError } from "@/lib/api";
 import { createMutationHook } from "@/hooks/use-query";
-import { handleApiSuccess, handleApiError } from "@/lib/error-handler";
+import { handleApiSuccess } from "@/lib/error-handler";
 import { dashboardKeys } from "./keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { useModal } from "@/hooks/use-modal-store";
@@ -15,18 +15,13 @@ export const useInitiateAgentMutation = createMutationHook<
   initiateAgent,
   {
     errorContext: { operation: 'initiate agent', resource: 'AI assistant' },
+    retry: false,
     onSuccess: (data) => {
       handleApiSuccess("Agent initiated successfully", "Your AI assistant is ready to help");
     },
     onError: (error) => {
-      // Let BillingError and AgentRunLimitError bubble up to be handled by components
-      if (error instanceof BillingError || error instanceof AgentRunLimitError) {
-        throw error;
-      }
-      if (error instanceof Error && error.message.toLowerCase().includes("payment required")) {
-        return;
-      }
-      handleApiError(error, { operation: 'initiate agent', resource: 'AI assistant' });
+      // Keep UI error messaging in the calling components to avoid duplicate toasts.
+      if (error instanceof BillingError || error instanceof AgentRunLimitError) return;
     }
   }
 );
@@ -51,6 +46,7 @@ export const useInitiateAgentWithInvalidation = () => {
           return;
         }
       }
+      throw error;
     }
   });
 };

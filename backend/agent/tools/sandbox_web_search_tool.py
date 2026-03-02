@@ -1,4 +1,3 @@
-from tavily import AsyncTavilyClient
 import httpx
 from dotenv import load_dotenv
 from agentpress.tool import ToolResult
@@ -10,6 +9,15 @@ import os
 import datetime
 import asyncio
 import logging
+import re
+import html as html_lib
+from urllib.parse import parse_qs, unquote, urlparse
+
+# Tavily is optional in local/dev environments.
+try:
+    from tavily import AsyncTavilyClient
+except ImportError:
+    AsyncTavilyClient = None
 
 # TODO: add subpages, etc... in filters as sometimes its necessary 
 
@@ -24,14 +32,16 @@ class SandboxWebSearchTool(SandboxToolsBase):
         self.tavily_api_key = config.TAVILY_API_KEY
         self.firecrawl_api_key = config.FIRECRAWL_API_KEY
         self.firecrawl_url = config.FIRECRAWL_URL
-        
-        if not self.tavily_api_key:
-            raise ValueError("TAVILY_API_KEY not found in configuration")
-        if not self.firecrawl_api_key:
-            raise ValueError("FIRECRAWL_API_KEY not found in configuration")
+        self.tavily_client = None
+        self.tavily_unavailable_reason = None
 
-        # 获取 Tavily 的异步搜索客户端
-        self.tavily_client = AsyncTavilyClient(api_key=self.tavily_api_key)
+        if AsyncTavilyClient is None:
+            self.tavily_unavailable_reason = "tavily-python is not installed"
+        elif not self.tavily_api_key:
+            self.tavily_unavailable_reason = "TAVILY_API_KEY not found in configuration"
+        else:
+            # 获取 Tavily 的异步搜索客户端
+            self.tavily_client = AsyncTavilyClient(api_key=self.tavily_api_key)
 
     async def web_search(
         self, 
@@ -50,7 +60,7 @@ class SandboxWebSearchTool(SandboxToolsBase):
             {
                 "name": "web_search",
                 "parameters": {
-                    "query": "what is FuFanManus and what are they building?",
+                    "query": "what is AlexManus and what are they building?",
                     "num_results": 20
                 }
             }
@@ -79,6 +89,12 @@ class SandboxWebSearchTool(SandboxToolsBase):
             if not query or not isinstance(query, str):
                 return self.fail_response("A valid search query is required.")
 
+            if self.tavily_client is None:
+                return await self._fallback_web_search(
+                    query=query,
+                    num_results=num_results,
+                    fallback_reason=self.tavily_unavailable_reason or "Tavily client is unavailable.",
+                )
 
             # 使用 Tavily 执行搜索
             search_response = await self.tavily_client.search(
@@ -103,20 +119,207 @@ class SandboxWebSearchTool(SandboxToolsBase):
                     output=json.dumps(search_response, ensure_ascii=False)
                 )
             else:
-                # 没有结果或答案找到
-                logging.warning(f"No search results or answer found for query: '{query}'")
-                return ToolResult(
-                    success=False,
-                    output=json.dumps(search_response, ensure_ascii=False)
+                logging.warning(f"No Tavily results for query: '{query}', falling back to DuckDuckGo.")
+                return await self._fallback_web_search(
+                    query=query,
+                    num_results=num_results,
+                    fallback_reason="Tavily returned no results",
                 )
         
         except Exception as e:
             error_message = str(e)
-            logging.error(f"Error performing web search for '{query}': {error_message}")
-            simplified_message = f"Error performing web search: {error_message[:200]}"
-            if len(error_message) > 200:
-                simplified_message += "..."
-            return self.fail_response(simplified_message)
+            logging.error(f"Error performing Tavily web search for '{query}': {error_message}")
+            return await self._fallback_web_search(
+                query=query,
+                num_results=num_results,
+                fallback_reason=f"Tavily error: {error_message[:200]}",
+            )
+
+    async def _fallback_web_search(
+        self,
+        query: str,
+        num_results: int,
+        fallback_reason: str,
+    ) -> ToolResult:
+        """Fallback search provider when Tavily is unavailable or fails."""
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                response = await client.get(
+                    "https://html.duckduckgo.com/html/",
+                    params={"q": query},
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                            "AppleWebKit/537.36 (KHTML, like Gecko) "
+                            "Chrome/145.0.0.0 Safari/537.36"
+                        )
+                    },
+                )
+            response.raise_for_status()
+
+            results = self._extract_duckduckgo_results(response.text, max_results=num_results)
+            fallback_provider = "duckduckgo_html"
+
+            if not results:
+                async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                    bing_response = await client.get(
+                        "https://www.bing.com/search",
+                        params={"q": query},
+                        headers={
+                            "User-Agent": (
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                "Chrome/145.0.0.0 Safari/537.36"
+                            )
+                        },
+                    )
+                bing_response.raise_for_status()
+                results = self._extract_bing_results(bing_response.text, max_results=num_results)
+                if results:
+                    fallback_provider = "bing_html"
+
+            if not results:
+                return self.fail_response(
+                    f"Web search returned no results (fallback provider). Reason: {fallback_reason}"
+                )
+
+            payload = {
+                "query": query,
+                "answer": "",
+                "results": results,
+                "images": [],
+                "fallback_provider": fallback_provider,
+                "fallback_reason": fallback_reason,
+            }
+            return ToolResult(success=True, output=json.dumps(payload, ensure_ascii=False))
+        except Exception as e:
+            fallback_error = str(e)
+            logging.error(f"Fallback web search failed for '{query}': {fallback_error}")
+            return self.fail_response(
+                f"Error performing web search (Tavily and fallback failed): {fallback_error[:200]}"
+            )
+
+    def _extract_duckduckgo_results(self, html_content: str, max_results: int) -> list[dict]:
+        """Extract title/url pairs from DuckDuckGo HTML results page."""
+        pattern = re.compile(
+            r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+            re.IGNORECASE | re.DOTALL,
+        )
+        extracted: list[dict] = []
+
+        for match in pattern.finditer(html_content):
+            raw_url = html_lib.unescape(match.group(1))
+            title_html = match.group(2)
+            title = html_lib.unescape(re.sub(r"<[^>]+>", "", title_html)).strip()
+            if not title:
+                continue
+
+            url = self._normalize_duckduckgo_url(raw_url)
+            if not url:
+                continue
+
+            extracted.append(
+                {
+                    "title": title,
+                    "url": url,
+                    "content": "",
+                    "published_date": None,
+                }
+            )
+
+            if len(extracted) >= max_results:
+                break
+
+        return extracted
+
+    def _normalize_duckduckgo_url(self, raw_url: str) -> str:
+        """Decode DuckDuckGo redirect URL to the original destination URL."""
+        candidate = raw_url.strip()
+        if not candidate:
+            return ""
+
+        if candidate.startswith("//"):
+            candidate = f"https:{candidate}"
+        elif candidate.startswith("/"):
+            candidate = f"https://duckduckgo.com{candidate}"
+
+        parsed = urlparse(candidate)
+        parsed_netloc = parsed.netloc.lower()
+        parsed_path = parsed.path.lower()
+        parsed_query = parsed.query.lower()
+
+        # DuckDuckGo sponsor hops and Bing ad click trackers are not useful sources.
+        if self._is_blocked_search_url(
+            parsed_netloc=parsed_netloc,
+            parsed_path=parsed_path,
+            parsed_query=parsed_query,
+        ):
+            return ""
+
+        if parsed_netloc.endswith("duckduckgo.com") and parsed_path == "/l/":
+            query_params = parse_qs(parsed.query)
+            uddg = query_params.get("uddg", [""])[0]
+            if not uddg:
+                return candidate
+            decoded = unquote(uddg)
+            if not decoded or decoded == candidate:
+                return candidate
+            return self._normalize_duckduckgo_url(decoded)
+
+        return candidate
+
+    def _is_blocked_search_url(
+        self,
+        *,
+        parsed_netloc: str,
+        parsed_path: str,
+        parsed_query: str,
+    ) -> bool:
+        return (
+            (parsed_netloc.endswith("duckduckgo.com") and parsed_path.startswith("/y.js"))
+            or (parsed_netloc.endswith("bing.com") and parsed_path.startswith("/aclick"))
+            or ("ad_provider=" in parsed_query)
+            or ("ad_domain=" in parsed_query)
+        )
+
+    def _extract_bing_results(self, html_content: str, max_results: int) -> list[dict]:
+        """Extract title/url pairs from Bing HTML result page."""
+        pattern = re.compile(
+            r'<li[^>]*class="[^"]*b_algo[^"]*"[^>]*>.*?<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+            re.IGNORECASE | re.DOTALL,
+        )
+        extracted: list[dict] = []
+
+        for match in pattern.finditer(html_content):
+            raw_url = html_lib.unescape(match.group(1))
+            title_html = match.group(2)
+            title = html_lib.unescape(re.sub(r"<[^>]+>", "", title_html)).strip()
+            if not title:
+                continue
+
+            parsed = urlparse(raw_url)
+            parsed_netloc = parsed.netloc.lower()
+            parsed_path = parsed.path.lower()
+            parsed_query = parsed.query.lower()
+            if self._is_blocked_search_url(
+                parsed_netloc=parsed_netloc,
+                parsed_path=parsed_path,
+                parsed_query=parsed_query,
+            ):
+                continue
+
+            extracted.append(
+                {
+                    "title": title,
+                    "url": raw_url.strip(),
+                    "content": "",
+                    "published_date": None,
+                }
+            )
+            if len(extracted) >= max_results:
+                break
+
+        return extracted
 
     async def scrape_webpage(
         self,
@@ -137,7 +340,7 @@ class SandboxWebSearchTool(SandboxToolsBase):
             {
                 "name": "scrape_webpage",
                 "parameters": {
-                    "urls": "https://github.com/fufankeji"
+                    "urls": "https://github.com/Alexkeji"
                 }
             }
         
@@ -154,6 +357,9 @@ class SandboxWebSearchTool(SandboxToolsBase):
         try:            
             # 确保 sandbox 已初始化
             await self._ensure_sandbox()
+
+            if not self.firecrawl_api_key:
+                return self.fail_response("FIRECRAWL_API_KEY not found in configuration")
             
             # 解析URL参数
             if not urls:

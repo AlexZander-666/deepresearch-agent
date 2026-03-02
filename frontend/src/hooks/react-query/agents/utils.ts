@@ -2,6 +2,64 @@ import { createClient } from "@/lib/supabase/client";
 import { isFlagEnabled } from "@/lib/feature-flags";
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
+const CUSTOM_AGENTS_DISABLED_ERROR = 'Custom agents is not enabled';
+
+const emptyAgentsResponse = (params: AgentsParams): AgentsResponse => ({
+  agents: [],
+  pagination: {
+    page: params.page ?? 1,
+    limit: params.limit ?? 20,
+    total: 0,
+    pages: 0,
+  },
+});
+
+const emptyAgentBuilderChatHistory = (): { messages: any[]; thread_id: string | null } => ({
+  messages: [],
+  thread_id: null,
+});
+
+const getErrorMessage = (value: unknown, depth = 0): string => {
+  if (depth > 6 || value == null) return '';
+  if (typeof value === 'string') return value;
+  if (value instanceof Error) {
+    const fromMessage = getErrorMessage(value.message, depth + 1);
+    if (fromMessage) return fromMessage;
+    const cause = (value as Error & { cause?: unknown }).cause;
+    return getErrorMessage(cause, depth + 1);
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const nested = getErrorMessage(item, depth + 1);
+      if (nested) return nested;
+    }
+    return '';
+  }
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const candidates = [
+      record.message,
+      record.detail,
+      record.error,
+      record.error_description,
+      record.reason,
+      record.msg,
+    ];
+    for (const candidate of candidates) {
+      const nested = getErrorMessage(candidate, depth + 1);
+      if (nested) return nested;
+    }
+  }
+  return '';
+};
+
+const getHttpErrorMessage = (status: number, statusText: string, errorData: unknown): string =>
+  getErrorMessage(errorData) || `HTTP ${status}: ${statusText}`;
+
+const isCustomAgentsDisabledError = (value: unknown): boolean => {
+  const message = getErrorMessage(value).toLowerCase();
+  return message.includes('custom agents') && (message.includes('disabled') || message.includes('not enabled'));
+};
 
 export type Agent = {
   agent_id: string;
@@ -157,7 +215,7 @@ export const getAgents = async (params: AgentsParams = {}): Promise<AgentsRespon
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      return emptyAgentsResponse(params);
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -189,12 +247,18 @@ export const getAgents = async (params: AgentsParams = {}): Promise<AgentsRespon
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      if (isCustomAgentsDisabledError(errorData)) {
+        return emptyAgentsResponse(params);
+      }
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const result = await response.json();
     return result;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      return emptyAgentsResponse(params);
+    }
     console.error('Error fetching agents:', err);
     throw err;
   }
@@ -223,12 +287,15 @@ export const getAgent = async (agentId: string): Promise<Agent> => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const agent = await response.json();
     return agent;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error fetching agent:', err);
     throw err;
   }
@@ -269,12 +336,15 @@ export const createAgent = async (agentData: AgentCreateRequest): Promise<Agent>
         throw new AgentCountLimitError(response.status, errorDetail);
       }
       
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const agent = await response.json();
     return agent;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error creating agent:', err);
     throw err;
   }
@@ -304,12 +374,15 @@ export const updateAgent = async (agentId: string, agentData: AgentUpdateRequest
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: {response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const agent = await response.json();
     return agent;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error updating agent:', err);
     throw err;
   }
@@ -338,9 +411,12 @@ export const deleteAgent = async (agentId: string): Promise<void> => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error deleting agent:', err);
     throw err;
   }
@@ -350,7 +426,11 @@ export const getThreadAgent = async (threadId: string): Promise<ThreadAgentRespo
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      return {
+        agent: null,
+        source: 'none',
+        message: CUSTOM_AGENTS_DISABLED_ERROR,
+      };
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -369,12 +449,26 @@ export const getThreadAgent = async (threadId: string): Promise<ThreadAgentRespo
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      if (isCustomAgentsDisabledError(errorData)) {
+        return {
+          agent: null,
+          source: 'none',
+          message: CUSTOM_AGENTS_DISABLED_ERROR,
+        };
+      }
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const agent = await response.json();
     return agent;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      return {
+        agent: null,
+        source: 'none',
+        message: CUSTOM_AGENTS_DISABLED_ERROR,
+      };
+    }
     console.error('Error fetching thread agent:', err);
     throw err;
   }
@@ -384,7 +478,7 @@ export const getAgentBuilderChatHistory = async (agentId: string): Promise<{mess
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      return emptyAgentBuilderChatHistory();
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -403,12 +497,18 @@ export const getAgentBuilderChatHistory = async (agentId: string): Promise<{mess
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      if (isCustomAgentsDisabledError(errorData)) {
+        return emptyAgentBuilderChatHistory();
+      }
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const data = await response.json();
     return data;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      return emptyAgentBuilderChatHistory();
+    }
     console.error('Error fetching agent builder chat history:', err);
     throw err;
   }
@@ -477,7 +577,7 @@ export const startAgentBuilderChat = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const reader = response.body?.getReader();
@@ -511,6 +611,9 @@ export const startAgentBuilderChat = async (
       }
     }
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error in agent builder chat:', err);
     throw err;
   }
@@ -520,7 +623,7 @@ export const getAgentVersions = async (agentId: string): Promise<AgentVersion[]>
   try {
     const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
     if (!agentPlaygroundEnabled) {
-      throw new Error('Custom agents is not enabled');
+      return [];
     }
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
@@ -537,12 +640,18 @@ export const getAgentVersions = async (agentId: string): Promise<AgentVersion[]>
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      if (isCustomAgentsDisabledError(errorData)) {
+        return [];
+      }
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const versions = await response.json();
     return versions;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      return [];
+    }
     console.error('Error fetching agent versions:', err);
     throw err;
   }
@@ -575,12 +684,15 @@ export const createAgentVersion = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const version = await response.json();
     return version;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error creating agent version:', err);
     throw err;
   }
@@ -614,9 +726,12 @@ export const activateAgentVersion = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error activating agent version:', err);
     throw err;
   }
@@ -649,12 +764,15 @@ export const getAgentVersion = async (
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
+      throw new Error(getHttpErrorMessage(response.status, response.statusText, errorData));
     }
 
     const version = await response.json();
     return version;
   } catch (err) {
+    if (isCustomAgentsDisabledError(err)) {
+      throw new Error(CUSTOM_AGENTS_DISABLED_ERROR);
+    }
     console.error('Error fetching agent version:', err);
     throw err;
   }

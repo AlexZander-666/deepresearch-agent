@@ -16,8 +16,31 @@ MODELS = {
         },
         "tier_availability": ["free", "paid"]
     },
-    "deepseek/deepseek-chat": {
-        "aliases": ["deepseek", "deepseek-chat", "DeepSeek", "DeepSeek/DeepSeek-chat", "DeepSeek-chat"],
+    "deepseek-v3.2": {
+        "aliases": [
+            "deepseek-v3.2",
+            "deepseek",
+            "deepseek-chat",
+            "deepseek/deepseek-chat",
+            "deepseek/deepseek-chat-v3.1",
+            "deepseek/deepseek-chat-v3.2",
+            "DeepSeek",
+            "DeepSeek/DeepSeek-chat",
+            "DeepSeek-chat",
+        ],
+        "pricing": {
+            "input_cost_per_million_tokens": 0.14,
+            "output_cost_per_million_tokens": 0.28
+        },
+        "tier_availability": ["free", "paid"]
+    },
+    "deepseek-ai/DeepSeek-V3.2": {
+        "aliases": [
+            "deepseek-siliconflow",
+            "deepseek-v3.2-siliconflow",
+            "deepseek-ai/DeepSeek-V3.2",
+            "openai/deepseek-ai/DeepSeek-V3.2",
+        ],
         "pricing": {
             "input_cost_per_million_tokens": 0.14,
             "output_cost_per_million_tokens": 0.28
@@ -180,6 +203,9 @@ def _generate_model_structures():
         if model_name.startswith("openrouter/deepseek/"):
             legacy_name = model_name.replace("openrouter/", "")
             pricing[legacy_name] = config["pricing"]
+        elif model_name.startswith("deepseek-ai/"):
+            openai_name = f"openai/{model_name}"
+            pricing[openai_name] = config["pricing"]
         elif model_name.startswith("openrouter/qwen/"):
             legacy_name = model_name.replace("openrouter/", "")
             pricing[legacy_name] = config["pricing"]

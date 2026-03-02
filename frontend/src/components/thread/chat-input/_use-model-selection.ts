@@ -1,15 +1,25 @@
 'use client';
 
-import { useSubscription } from '@/hooks/react-query/subscriptions/use-subscriptions';
 import { useState, useEffect, useMemo } from 'react';
 import { isLocalMode } from '@/lib/config';
 import { useAvailableModels } from '@/hooks/react-query/subscriptions/use-model';
+import {
+  DEFAULT_MODEL_PROVIDER,
+  DASHSCOPE_MODEL_ID,
+  inferProviderFromModelId,
+  isDeepSeekModel,
+  normalizeModelIdForRequest,
+  normalizeModelIdForSelection,
+  normalizeModelProvider,
+  type ModelProvider,
+} from '@/lib/model-provider';
 
 export const STORAGE_KEY_MODEL = 'suna-preferred-model-v3';
+export const STORAGE_KEY_MODEL_PROVIDER = 'suna-model-provider-v1';
 export const STORAGE_KEY_CUSTOM_MODELS = 'customModels';
-// 🎯 修改默认模型为新的三选一模式
-export const DEFAULT_PREMIUM_MODEL_ID = 'gpt-4o';
-export const DEFAULT_FREE_MODEL_ID = 'deepseek-chat';
+// 统一默认模型为 deepseek-v3.2
+export const DEFAULT_PREMIUM_MODEL_ID = DASHSCOPE_MODEL_ID;
+export const DEFAULT_FREE_MODEL_ID = DASHSCOPE_MODEL_ID;
 
 export type SubscriptionStatus = 'no_subscription' | 'active';
 
@@ -47,7 +57,7 @@ export const MODELS = {
     lowQuality: false
   },
   // Free tier models (available to all users)
-  'deepseek-chat': { 
+  [DASHSCOPE_MODEL_ID]: {
     tier: 'free',
     priority: 100, 
     recommended: true,
@@ -152,10 +162,7 @@ export const canAccessModel = (
   subscriptionStatus: SubscriptionStatus,
   requiresSubscription: boolean,
 ): boolean => {
-  if (isLocalMode()) {
-    return true;
-  }
-  return subscriptionStatus === 'active' || !requiresSubscription;
+  return true;
 };
 
 // Helper to format a model name for display
@@ -205,19 +212,27 @@ const saveModelPreference = (modelId: string): void => {
   }
 };
 
+const saveProviderPreference = (provider: ModelProvider): void => {
+  try {
+    localStorage.setItem(STORAGE_KEY_MODEL_PROVIDER, provider);
+  } catch (error) {
+    console.warn('Failed to save provider preference to localStorage:', error);
+  }
+};
+
 export const useModelSelection = () => {
   const [selectedModel, setSelectedModel] = useState(DEFAULT_FREE_MODEL_ID);
+  const [selectedProvider, setSelectedProvider] = useState<ModelProvider>(
+    DEFAULT_MODEL_PROVIDER,
+  );
   const [customModels, setCustomModels] = useState<CustomModel[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
-  
-  const { data: subscriptionData } = useSubscription();
+
   const { data: modelsData, isLoading: isLoadingModels } = useAvailableModels({
     refetchOnMount: false,
   });
-  
-  const subscriptionStatus: SubscriptionStatus = subscriptionData?.status === 'active' 
-    ? 'active' 
-    : 'no_subscription';
+
+  const subscriptionStatus: SubscriptionStatus = 'active';
 
   // Function to refresh custom models from localStorage
   const refreshCustomModels = () => {
@@ -236,23 +251,15 @@ export const useModelSelection = () => {
   const MODEL_OPTIONS = useMemo(() => {
     let models = [];
     
-    // 🎯 默认只显示三个主要模型：GPT-5, DeepSeek, Ollama(本地)
+    // 默认只显示 deepseek-v3.2，local 模式附加 ollama
     if (!modelsData?.models || isLoadingModels) {
       models = [
         // DeepSeek (免费)
-        { 
-          id: 'deepseek-chat', 
-          label: 'DeepSeek', 
+        {
+          id: DASHSCOPE_MODEL_ID,
+          label: 'DeepSeek V3.2',
           requiresSubscription: false,
-          priority: MODELS['deepseek-chat']?.priority || 100,
-          recommended: true
-        },
-        // GPT-4o (高级)
-        { 
-          id: 'gpt-4o', 
-          label: 'GPT-4o', 
-          requiresSubscription: true, 
-          priority: MODELS['gpt-4o']?.priority || 105,
+          priority: MODELS[DASHSCOPE_MODEL_ID]?.priority || 100,
           recommended: true
         },
       ];
@@ -269,44 +276,59 @@ export const useModelSelection = () => {
         });
       }
     } else {
-      // 🎯 从API数据中筛选，只显示三个目标模型
-      const targetModels = ['deepseek-chat', 'gpt-4o']; // ollama将在本地模式下单独添加
-      
-      models = modelsData.models
+      // 从API数据中筛选，只保留 deepseek 目标模型
+      const targetModels = [
+        DASHSCOPE_MODEL_ID,
+        'deepseek-chat',
+        'deepseek-ai/DeepSeek-V3.2',
+        'openai/deepseek-ai/DeepSeek-V3.2',
+      ]; // ollama将在本地模式下单独添加
+
+      const modelMap = new Map<string, any>();
+      modelsData.models
         .filter(model => {
           const shortName = model.short_name || model.id;
           return targetModels.includes(shortName);
         })
-        .map(model => {
+        .forEach(model => {
           const shortName = model.short_name || model.id;
+          const normalizedShortName = normalizeModelIdForSelection(shortName);
+          if (modelMap.has(normalizedShortName)) {
+            return;
+          }
+
           const displayName = model.display_name || shortName;
-          
-          // Format the display label
           let cleanLabel = displayName;
           if (cleanLabel.includes('/')) {
             cleanLabel = cleanLabel.split('/').pop() || cleanLabel;
           }
-          
+
           cleanLabel = cleanLabel
             .replace(/-/g, ' ')
             .split(' ')
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
-          
-          // Get model data from our central MODELS constant
-          const modelData = MODELS[shortName] || {};
-          const isPremium = model?.requires_subscription || modelData.tier === 'premium' || false;
-          
-          return {
-            id: shortName,
+
+          if (isDeepSeekModel(normalizedShortName)) {
+            cleanLabel = 'DeepSeek V3.2';
+          }
+
+          const modelData = MODELS[normalizedShortName] || {};
+          const isPremium =
+            model?.requires_subscription || modelData.tier === 'premium' || false;
+
+          modelMap.set(normalizedShortName, {
+            id: normalizedShortName,
             label: cleanLabel,
             requiresSubscription: isPremium,
             top: modelData.priority >= 90, // Mark high-priority models as "top"
             priority: modelData.priority || 0,
             lowQuality: modelData.lowQuality || false,
-            recommended: modelData.recommended || false
-          };
+            recommended: modelData.recommended || false,
+          });
         });
+
+      models = Array.from(modelMap.values());
       
       // Always add ollama model in local mode (from API data scenario)
       if (isLocalMode()) {
@@ -376,16 +398,36 @@ export const useModelSelection = () => {
     if (typeof window === 'undefined' || hasInitialized) return;
     try {
       const savedModel = localStorage.getItem(STORAGE_KEY_MODEL);
-      
+      const savedProvider = localStorage.getItem(STORAGE_KEY_MODEL_PROVIDER);
+      const storageProvider = savedProvider
+        ? normalizeModelProvider(savedProvider)
+        : null;
+      const inferredProvider = savedModel
+        ? inferProviderFromModelId(savedModel)
+        : null;
+      const initialProvider =
+        inferredProvider || storageProvider || DEFAULT_MODEL_PROVIDER;
+
+      setSelectedProvider(initialProvider);
+      saveProviderPreference(initialProvider);
+
       // If we have a saved model, validate it's still available and accessible
       if (savedModel) {
         // Wait for models to load before validating
         if (isLoadingModels) {
           return;
         }
-        
-        const modelOption = MODEL_OPTIONS.find(option => option.id === savedModel);
-        const isCustomModel = isLocalMode() && customModels.some(model => model.id === savedModel);
+
+        const normalizedSavedModel = normalizeModelIdForSelection(savedModel);
+        const modelOption = MODEL_OPTIONS.find(
+          option => option.id === normalizedSavedModel,
+        );
+        const isCustomModel =
+          isLocalMode() &&
+          customModels.some(
+            model =>
+              model.id === normalizedSavedModel || model.id === savedModel,
+          );
         
         // Check if saved model is still valid and accessible
         if (modelOption || isCustomModel) {
@@ -393,7 +435,8 @@ export const useModelSelection = () => {
             canAccessModel(subscriptionStatus, modelOption?.requiresSubscription ?? false);
           
           if (isAccessible) {
-            setSelectedModel(savedModel);
+            setSelectedModel(normalizedSavedModel);
+            saveModelPreference(normalizedSavedModel);
             setHasInitialized(true);
             return;
           }
@@ -423,6 +466,8 @@ export const useModelSelection = () => {
       }
       setSelectedModel(defaultModel);
       saveModelPreference(defaultModel);
+      setSelectedProvider(DEFAULT_MODEL_PROVIDER);
+      saveProviderPreference(DEFAULT_MODEL_PROVIDER);
       setHasInitialized(true);
     }
   }, [subscriptionStatus, MODEL_OPTIONS, isLoadingModels, customModels, hasInitialized]);
@@ -435,14 +480,27 @@ export const useModelSelection = () => {
     }
     
     // First check if it's a custom model in local mode
-    const isCustomModel = isLocalMode() && customModels.some(model => model.id === modelId);
+    const normalizedModelId = normalizeModelIdForSelection(modelId);
+    const isCustomModel =
+      isLocalMode() &&
+      customModels.some(
+        model => model.id === modelId || model.id === normalizedModelId,
+      );
     
     // Then check if it's in standard MODEL_OPTIONS
-    const modelOption = MODEL_OPTIONS.find(option => option.id === modelId);
+    const modelOption = MODEL_OPTIONS.find(
+      option => option.id === normalizedModelId,
+    );
     
     // Check if model exists in either custom models or standard options
     if (!modelOption && !isCustomModel) {
-      console.warn('Model not found in options:', modelId, MODEL_OPTIONS, isCustomModel, customModels);
+      console.warn(
+        'Model not found in options:',
+        modelId,
+        MODEL_OPTIONS,
+        isCustomModel,
+        customModels,
+      );
       
       // Reset to default model when the selected model is not found
       const defaultModel = isLocalMode() ? DEFAULT_PREMIUM_MODEL_ID : DEFAULT_FREE_MODEL_ID;
@@ -458,8 +516,20 @@ export const useModelSelection = () => {
       return;
     }
     
-    setSelectedModel(modelId);
-    saveModelPreference(modelId);
+    setSelectedModel(normalizedModelId);
+    saveModelPreference(normalizedModelId);
+
+    const inferredProvider = inferProviderFromModelId(modelId);
+    if (inferredProvider) {
+      setSelectedProvider(inferredProvider);
+      saveProviderPreference(inferredProvider);
+    }
+  };
+
+  const handleProviderChange = (provider: ModelProvider) => {
+    const normalizedProvider = normalizeModelProvider(provider);
+    setSelectedProvider(normalizedProvider);
+    saveProviderPreference(normalizedProvider);
   };
 
   // Get the actual model ID to send to the backend
@@ -469,8 +539,7 @@ export const useModelSelection = () => {
       return 'ollama';
     }
     
-    // No need for automatic prefixing in most cases - just return as is
-    return modelId;
+    return normalizeModelIdForRequest(modelId, selectedProvider);
   };
 
   return {
@@ -478,7 +547,11 @@ export const useModelSelection = () => {
     setSelectedModel: (modelId: string) => {
       handleModelChange(modelId);
     },
-    subscriptionStatus,
+    selectedProvider,
+    setSelectedProvider: (provider: ModelProvider) => {
+      handleProviderChange(provider);
+    },
+    subscriptionStatus: subscriptionStatus as SubscriptionStatus,
     availableModels,
     allModels: MODEL_OPTIONS,  // Already pre-sorted
     customModels,

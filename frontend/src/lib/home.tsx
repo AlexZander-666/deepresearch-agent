@@ -109,9 +109,9 @@ export const siteConfig = {
     ),
     badge: '100% OPEN SOURCE',
     githubUrl: 'https://github.com/kortix-ai/suna',
-    title: 'FuFanManus – 构建、管理和训练您的 AI 工作团队.',
+    title: 'AlexManus – 构建、管理和训练您的 AI 工作团队.',
     description:
-      'FuFanManus – 从人工到 AI 迁移的最简单方式.',
+      'AlexManus – 从人工到 AI 迁移的最简单方式.',
     inputPlaceholder: 'Ask Suna to...',
   },
   cloudPricingItems: [
@@ -1235,7 +1235,7 @@ export const siteConfig = {
   },
   footerLinks: [
     {
-      title: 'FuFanManus',
+      title: 'AlexManus',
       links: [
         { id: 1, title: 'About', url: 'https://kortix.ai' },
         { id: 3, title: 'Contact', url: 'mailto:hey@kortix.ai' },

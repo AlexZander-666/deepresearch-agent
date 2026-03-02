@@ -180,31 +180,31 @@ async def test_basic_sandbox():
         from e2b_code_interpreter import Sandbox
         print("✅ 成功导入 e2b_code_interpreter.Sandbox")
         
-        # 测试基本配置
-        config = {
-            'timeoutMs': 30000,  # 30秒
-            'metadata': {
-                'test': True,
-                'purpose': 'basic_test'
-            }
+        # 测试基本配置（E2B SDK 需要显式 template 字符串）
+        template_id = os.getenv('SANDBOX_TEMPLATE_CODE', 'br263f8awvhrqd7ss1ze')
+        timeout_seconds = 30
+        metadata = {
+            'test': 'true',
+            'purpose': 'basic_test'
         }
-        
+
         print("📋 沙箱配置:")
-        print(f"   - 超时: {config['timeoutMs']}ms")
-        print(f"   - 元数据: {config['metadata']}")
+        print(f"   - 模板: {template_id}")
+        print(f"   - 超时: {timeout_seconds}s")
+        print(f"   - 元数据: {metadata}")
         
         # 尝试创建沙箱
         print("\n🔧 尝试创建沙箱...")
-        sandbox = Sandbox(config)
+        sandbox = Sandbox(template=template_id, timeout=timeout_seconds, metadata=metadata)
         print(f"✅ 沙箱创建成功！")
         print(f"   - 沙箱ID: {getattr(sandbox, 'sandboxId', 'N/A')}")
         
         # 测试简单命令
         print("\n📝 测试执行命令...")
         try:
-            result = sandbox.runCode('print("Hello from PPIO sandbox!")')  # 移除 await，这是同步方法
+            result = sandbox.run_code('print("Hello from PPIO sandbox!")')
             print("✅ 命令执行成功:")
-            if hasattr(result, 'logs'):
+            if hasattr(result, 'logs') and result.logs is not None:
                 print(f"   - 输出: {result.logs}")
             else:
                 print(f"   - 结果: {result}")

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  type DehydratedState,
   HydrationBoundary,
   QueryClient,
   QueryClientProvider,
@@ -15,6 +16,14 @@ export function ReactQueryProvider({
   children: React.ReactNode;
   dehydratedState?: unknown;
 }) {
+  const hydrationState: DehydratedState | undefined =
+    dehydratedState &&
+    typeof dehydratedState === 'object' &&
+    'queries' in dehydratedState &&
+    'mutations' in dehydratedState
+      ? (dehydratedState as DehydratedState)
+      : undefined;
+
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -49,7 +58,7 @@ export function ReactQueryProvider({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <HydrationBoundary state={dehydratedState}>
+      <HydrationBoundary state={hydrationState}>
         {children}
 
       </HydrationBoundary>

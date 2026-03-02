@@ -1,0 +1,21 @@
+﻿{
+    "thread_id":  "3e81e6e8-8e6c-42a8-bb3f-2c72265261f0",
+    "total_messages":  36,
+    "thread_run_ids_count":  4,
+    "tool_summary":  {
+                         "create_tasks":  {
+                                              "completed":  1,
+                                              "failed":  1,
+                                              "error":  0
+                                          },
+                         "view_tasks":  {
+                                            "completed":  1,
+                                            "failed":  0,
+                                            "error":  0
+                                        }
+                     },
+    "assistant_count":  8,
+    "final_assistant_synthetic":  "web_search_fallback_summary",
+    "final_assistant_low_value":  false,
+    "final_assistant_preview":  "å·²è§¦åèªå¨å\u0085åºæ¶ææµç¨ãä»¥ä¸æ¯åºäºå½åå¯ç¨è¯æ®çæçç»æåæ¥åï¼\n\nä¸ãç»è®º\n- å½åååå·²å®æèªå¨åè¯æ®æ¶éï¼å¹¶è¾åºå¯å¤æ ¸çæ¥æºåè¡¨ã\n- è¥å·¥å\u0085·é¾å¨ä¸­éå¾ªç¯ä¸­æ­ï¼æ¬æ¥å"
+}

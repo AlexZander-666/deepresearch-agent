@@ -1,0 +1,47 @@
+[
+  {
+    "case": "deep",
+    "thread_id": "04aac13f-09e6-4038-b1bd-24c68b9cea00",
+    "run_id": "06b18ba7-aeee-4726-aa8a-60daa4e7b008",
+    "status": "completed",
+    "elapsed_s": 45.3,
+    "tool_summary": {},
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- 万字长文深度解析最新Deep Research技术：前沿架构、核心技术与未来展望 - 53AI-AI知识库|大模型知识库|大模型训练|智能体开发\n- 从3个核心问题，全面看懂通义Dee"
+  },
+  {
+    "case": "browser",
+    "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+    "run_id": "cbd2dda9-e8eb-4119-bd3a-ee1bcb5eb309",
+    "status": "completed",
+    "elapsed_s": 21.2,
+    "tool_summary": {
+      "browser_navigate_to": {
+        "completed": 0,
+        "failed": 1,
+        "error": 0
+      }
+    },
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- How to get the browser to navigate to URL in JavaScript\n- Puppeteer API | Puppeteer 中文文档| Pu"
+  },
+  {
+    "case": "sandbox",
+    "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+    "run_id": "cad3c3a5-b3fe-445d-8e3f-42eed3459ada",
+    "status": "completed",
+    "elapsed_s": 15.1,
+    "tool_summary": {},
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- 创建屏幕截图 - GitHub 文档\n- 8种方法来在微软Windows系统中屏幕截图\n- 使用截图工具捕获截图- Microsoft 支持\n\n三、工具执行记录\n- web_searc"
+  }
+]

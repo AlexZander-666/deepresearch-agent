@@ -1,0 +1,32 @@
+
+> AlexManus@0.1.0 dev
+> next dev --turbopack --port 3000
+
+   ▲ Next.js 15.5.12 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://198.18.0.1:3000
+   - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Compiled middleware in 76ms
+ ✓ Ready in 1978ms
+Simplified middleware - client-side auth only
+ ○ Compiling / ...
+ ✓ Compiled / in 6.1s
+ GET / 200 in 7219ms
+Simplified middleware - client-side auth only
+ ✓ Compiled /api/feature-flags/[flagName] in 249ms
+ GET /api/feature-flags/custom_agents 200 in 1476ms
+Simplified middleware - client-side auth only
+ GET /api/feature-flags/custom_agents 200 in 358ms
+Simplified middleware - client-side auth only
+ ○ Compiling /debug/real-stream ...
+ ✓ Compiled /debug/real-stream in 1704ms
+ GET /debug/real-stream 200 in 2305ms
+Simplified middleware - client-side auth only
+ ○ Compiling /debug/alexmanus-privacy ...
+ ✓ Compiled /debug/alexmanus-privacy in 1057ms
+ GET /debug/alexmanus-privacy 200 in 1235ms
+[?25h
+
+D:\BaiduNetdiskDownload\DeepResearch_Agent\frontend>

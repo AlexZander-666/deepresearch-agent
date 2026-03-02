@@ -7,14 +7,10 @@ import { UploadedFile } from './chat-input';
 import { FileUploadHandler } from './file-upload-handler';
 import { VoiceRecorder } from './voice-recorder';
 import { UnifiedConfigMenu } from './unified-config-menu';
-import { canAccessModel, SubscriptionStatus } from './_use-model-selection';
-import { isLocalMode } from '@/lib/config';
+import { SubscriptionStatus } from './_use-model-selection';
 import { useFeatureFlag } from '@/lib/feature-flags';
-import { TooltipContent } from '@/components/ui/tooltip';
-import { Tooltip } from '@/components/ui/tooltip';
-import { TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip';
-import { BillingModal } from '@/components/billing/billing-modal';
 import { handleFiles } from './file-upload-handler';
+import type { ModelProvider } from '@/lib/model-provider';
 
 interface MessageInputProps {
   value: string;
@@ -41,6 +37,8 @@ interface MessageInputProps {
 
   selectedModel: string;
   onModelChange: (model: string) => void;
+  selectedProvider: ModelProvider;
+  onProviderChange: (provider: ModelProvider) => void;
   modelOptions: any[];
   subscriptionStatus: SubscriptionStatus;
   canAccessModel: (modelId: string) => boolean;
@@ -79,6 +77,8 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
 
       selectedModel,
       onModelChange,
+      selectedProvider,
+      onProviderChange,
       modelOptions,
       subscriptionStatus,
       canAccessModel,
@@ -92,7 +92,6 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
     },
     ref,
   ) => {
-    const [billingModalOpen, setBillingModalOpen] = useState(false);
     const [mounted, setMounted] = useState(false);
     const { enabled: customAgentsEnabled, loading: flagsLoading } = useFeatureFlag('custom_agents');
 
@@ -172,6 +171,8 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
             onAgentSelect={showAdvancedFeatures && !hideAgentSelection ? onAgentSelect : undefined}
             selectedModel={selectedModel}
             onModelChange={onModelChange}
+            selectedProvider={selectedProvider}
+            onProviderChange={onProviderChange}
             modelOptions={modelOptions}
             subscriptionStatus={subscriptionStatus}
             canAccessModel={canAccessModel}
@@ -222,26 +223,8 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
 
           </div>
 
-          {/* {subscriptionStatus === 'no_subscription' && !isLocalMode() &&
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <p role='button' className='text-sm text-amber-500 hidden sm:block cursor-pointer' onClick={() => setBillingModalOpen(true)}>Upgrade for more usage</p>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>The free tier is severely limited by the amount of usage. Upgrade to experience the full power of FuFanManus.</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          } */}
-
           <div className='flex items-center gap-2'>
             {renderDropdown()}
-            <BillingModal
-              open={billingModalOpen}
-              onOpenChange={setBillingModalOpen}
-              returnUrl={typeof window !== 'undefined' ? window.location.href : '/'}
-            />
 
             {isLoggedIn && <VoiceRecorder
               onTranscription={onTranscription}
@@ -276,13 +259,6 @@ export const MessageInput = forwardRef<HTMLTextAreaElement, MessageInputProps>(
             </Button>
           </div>
         </div>
-        {/* {subscriptionStatus === 'no_subscription' && !isLocalMode() &&
-          <div className='sm:hidden absolute -bottom-8 left-0 right-0 flex justify-center'>
-            <p className='text-xs text-amber-500 px-2 py-1'>
-              Upgrade for better performance
-            </p>
-          </div>
-        } */}
       </div>
     );
   },

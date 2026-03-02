@@ -19,6 +19,41 @@ export interface ParsedToolResult {
   summary?: string;
 }
 
+function isLikelyFailureText(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized === 'streaming') return false;
+
+  return (
+    normalized.startsWith('failed') ||
+    normalized.includes('failed to') ||
+    normalized.includes('error:') ||
+    normalized.includes('errors:') ||
+    normalized.includes('exception') ||
+    normalized.includes('traceback') ||
+    normalized.includes('timed out') ||
+    normalized.includes('timeout') ||
+    normalized.includes('could not') ||
+    normalized.includes('unable to') ||
+    normalized.includes('permission denied')
+  );
+}
+
+function inferSuccess(
+  explicitSuccess: boolean | undefined,
+  output: unknown,
+): boolean {
+  if (typeof explicitSuccess === 'boolean') {
+    return explicitSuccess;
+  }
+
+  if (typeof output === 'string') {
+    return !isLikelyFailureText(output);
+  }
+
+  return true;
+}
+
 /**
  * Parse tool result content from various formats
  */
@@ -66,6 +101,8 @@ function parseStringToolResult(content: string): ParsedToolResult | null {
     if (successMatch) {
       isSuccess = successMatch[1].toLowerCase() === 'true';
     }
+  } else {
+    isSuccess = inferSuccess(undefined, content);
   }
 
   return {
@@ -80,20 +117,24 @@ function parseStringToolResult(content: string): ParsedToolResult | null {
  * Parse object-based tool result (new and legacy formats)
  */
 function parseObjectToolResult(content: any): ParsedToolResult | null {
-  console.log('🔧 [parseObjectToolResult] Processing content:', content);
   // New structured format with tool_execution
   if ('tool_execution' in content && typeof content.tool_execution === 'object') {
     const toolExecution = content.tool_execution;
     const functionName = toolExecution.function_name || 'unknown';
     const xmlTagName = toolExecution.xml_tag_name || '';
     const toolName = (xmlTagName || functionName).replace(/_/g, '-');
+    const output = toolExecution.result?.output || '';
+    const explicitSuccess =
+      typeof toolExecution.result?.success === 'boolean'
+        ? toolExecution.result.success
+        : undefined;
 
     return {
       toolName,
       functionName,
       xmlTagName: xmlTagName || undefined,
-      toolOutput: toolExecution.result?.output || '',
-      isSuccess: toolExecution.result?.success !== false,
+      toolOutput: output,
+      isSuccess: inferSuccess(explicitSuccess, output),
       arguments: toolExecution.arguments,
       timestamp: toolExecution.execution_details?.timestamp,
       toolCallId: toolExecution.tool_call_id,
@@ -121,15 +162,26 @@ function parseObjectToolResult(content: any): ParsedToolResult | null {
       if (typeof nestedContent.result === 'string') {
         // Result is a string
         toolOutput = nestedContent.result;
-        isSuccess = nestedContent.success !== false;
+        isSuccess = inferSuccess(
+          typeof nestedContent.success === 'boolean' ? nestedContent.success : undefined,
+          toolOutput,
+        );
       } else if (typeof nestedContent.result === 'object' && nestedContent.result) {
         // Result is an object
         toolOutput = nestedContent.result.output || '';
-        isSuccess = nestedContent.result.success !== false;
+        isSuccess = inferSuccess(
+          typeof nestedContent.result.success === 'boolean'
+            ? nestedContent.result.success
+            : (typeof nestedContent.success === 'boolean' ? nestedContent.success : undefined),
+          toolOutput,
+        );
       } else {
         // Fallback
         toolOutput = nestedContent.result || '';
-        isSuccess = nestedContent.success !== false;
+        isSuccess = inferSuccess(
+          typeof nestedContent.success === 'boolean' ? nestedContent.success : undefined,
+          toolOutput,
+        );
       }
       
       return {
@@ -149,14 +201,7 @@ function parseObjectToolResult(content: any): ParsedToolResult | null {
   // Legacy direct format
   if ('tool_name' in content || 'xml_tag_name' in content) {
     const toolName = (content.tool_name || content.xml_tag_name || 'unknown').replace(/_/g, '-');
-    
-    console.log('🔧 [parseObjectToolResult] Parsing legacy direct format:', {
-      toolName,
-      resultType: typeof content.result,
-      result: content.result,
-      success: content.success
-    });
-    
+
     // Handle both object and string result formats
     let toolOutput = '';
     let isSuccess = true;
@@ -164,19 +209,26 @@ function parseObjectToolResult(content: any): ParsedToolResult | null {
     if (typeof content.result === 'string') {
       // Result is a string (your format)
       toolOutput = content.result;
-      // For string results, assume success unless explicitly indicated otherwise
-      isSuccess = content.success !== false;
-      console.log('🔧 [parseObjectToolResult] Using string result format');
+      isSuccess = inferSuccess(
+        typeof content.success === 'boolean' ? content.success : undefined,
+        toolOutput,
+      );
     } else if (typeof content.result === 'object' && content.result) {
       // Result is an object (legacy format)
       toolOutput = content.result.output || '';
-      isSuccess = content.result.success !== false;
-      console.log('🔧 [parseObjectToolResult] Using object result format');
+      isSuccess = inferSuccess(
+        typeof content.result.success === 'boolean'
+          ? content.result.success
+          : (typeof content.success === 'boolean' ? content.success : undefined),
+        toolOutput,
+      );
     } else {
       // Fallback: use result directly
       toolOutput = content.result || '';
-      isSuccess = content.success !== false;
-      console.log('🔧 [parseObjectToolResult] Using fallback format');
+      isSuccess = inferSuccess(
+        typeof content.success === 'boolean' ? content.success : undefined,
+        toolOutput,
+      );
     }
     
     const result = {
@@ -186,7 +238,6 @@ function parseObjectToolResult(content: any): ParsedToolResult | null {
       isSuccess,
     };
     
-    console.log('🔧 [parseObjectToolResult] Final result:', result);
     return result;
   }
 

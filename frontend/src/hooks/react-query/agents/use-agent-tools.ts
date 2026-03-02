@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
-import { isFlagEnabled } from '@/lib/feature-flags';
+import { isFlagEnabled, useFeatureFlag } from '@/lib/feature-flags';
 
 const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || '';
 
@@ -19,10 +19,15 @@ interface AgentToolsResponse {
   mcp_tools: AgentTool[];
 }
 
+const emptyAgentToolsResponse = (): AgentToolsResponse => ({
+  agentpress_tools: [],
+  mcp_tools: [],
+});
+
 const fetchAgentTools = async (agentId: string): Promise<AgentToolsResponse> => {
   const agentPlaygroundEnabled = await isFlagEnabled('custom_agents');
   if (!agentPlaygroundEnabled) {
-    throw new Error('Custom agents is not enabled');
+    return emptyAgentToolsResponse();
   }
 
   const supabase = createClient();
@@ -50,10 +55,12 @@ const fetchAgentTools = async (agentId: string): Promise<AgentToolsResponse> => 
 };
 
 export const useAgentTools = (agentId: string) => {
+  const { enabled: customAgentsEnabled, loading: customAgentsLoading } = useFeatureFlag('custom_agents');
+
   return useQuery({
     queryKey: ['agent-tools', agentId],
     queryFn: () => fetchAgentTools(agentId),
     staleTime: 5 * 60 * 1000,
-    enabled: !!agentId,
+    enabled: !!agentId && customAgentsEnabled && !customAgentsLoading,
   });
 }; 

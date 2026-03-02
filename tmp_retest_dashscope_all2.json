@@ -1,0 +1,87 @@
+[
+  {
+    "case": "deep",
+    "thread_id": "04aac13f-09e6-4038-b1bd-24c68b9cea00",
+    "run_id": "6f9910a4-8879-4dd8-a291-2945e7350008",
+    "status": "completed",
+    "elapsed_s": 54.9,
+    "anchor_created_at": "2026-03-02T06:14:22.067872+00:00",
+    "scoped_message_count": 32,
+    "thread_run_ids": [
+      "6277af58-97cf-4eb9-ae8a-1b9de7e58878",
+      "f69d827a-0650-4c30-98d5-70f5f139a8eb",
+      "9da79e43-0b03-4e8f-8dcf-a5c589c52e59",
+      "32cd18f7-7abb-457f-8dcf-63cd03cf5d49"
+    ],
+    "tool_summary": {
+      "view_tasks": {
+        "completed": 1,
+        "failed": 0,
+        "error": 0
+      },
+      "web_search": {
+        "completed": 1,
+        "failed": 0,
+        "error": 0
+      },
+      "scrape_webpage": {
+        "completed": 0,
+        "failed": 1,
+        "error": 0
+      }
+    },
+    "assistant_count": 7,
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- US Ai Agents Market Size & Outlook, 2026-2033\n- AI Agents Framework Market Outlook 2026-2032\n- Top 5 AI Agent Trends for 2026 - USAII\n\n三、工具执行记录\n- web_se"
+  },
+  {
+    "case": "browser",
+    "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+    "run_id": "25278f9e-baa7-4c02-9e7e-b096613d68a2",
+    "status": "completed",
+    "elapsed_s": 27.5,
+    "anchor_created_at": "2026-03-02T06:15:18.906613+00:00",
+    "scoped_message_count": 33,
+    "thread_run_ids": [
+      "7ccd365a-777f-4058-b27d-32c06887045d",
+      "d6782270-1534-48bc-a642-4d40eba630d3",
+      "58b12161-427f-4dd4-b5c4-923294e8929d",
+      "84e9dbe2-1980-46bb-976c-6de2778cb561"
+    ],
+    "tool_summary": {
+      "browser_navigate_to": {
+        "completed": 0,
+        "failed": 3,
+        "error": 0
+      }
+    },
+    "assistant_count": 8,
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- Puppeteer Web Scraping in 2026: basic to advanced i\n- Quick Guide to Web Automation with Python - Neura AI Blog\n- Prerender pages in Chrome for instant "
+  },
+  {
+    "case": "sandbox",
+    "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+    "run_id": "011fb433-bd08-4de1-a3ec-e604a2272612",
+    "status": "completed",
+    "elapsed_s": 18.1,
+    "anchor_created_at": "2026-03-02T06:15:50.189859+00:00",
+    "scoped_message_count": 6,
+    "thread_run_ids": [
+      "21580de1-889c-4b0d-9b62-bc0ef444c251"
+    ],
+    "tool_summary": {},
+    "assistant_count": 2,
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ],
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- Manus让电脑使用再度翻红，一文带你全面认知Computer Use Agent\n- 8种方法来在微软Windows系统中屏幕截图\n- Claude可代替人手操控電腦！怎麼用？官網與中文使用教學 - 遠見雜誌\n\n三、工具执行记录\n- web_search：提取到 5 条候选来源。\n- computer"
+  }
+]

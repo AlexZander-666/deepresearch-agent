@@ -53,7 +53,7 @@ class DBConnection:
                     database_url = config.DATABASE_URL
                 else:
                     # Default connection string for development environment
-                    database_url = "postgresql://postgres:password@localhost:5432/fufanmanus"
+                    database_url = "postgresql://postgres:password@localhost:5432/AlexManus"
             
             if not database_url:
                 logger.error("Missing PostgreSQL DATABASE_URL environment variable")

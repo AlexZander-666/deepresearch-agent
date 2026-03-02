@@ -6,6 +6,8 @@ import { useMessagesQuery } from '@/hooks/react-query/threads/use-messages';
 import { useProjectQuery } from '@/hooks/react-query/threads/use-project';
 import { useAgentRunsQuery } from '@/hooks/react-query/threads/use-agent-run';
 import { ApiMessageType, UnifiedMessage, AgentStatus } from '../_types';
+import { mergeServerAndLocalMessages } from './message-merge';
+import { debugLog } from '@/lib/client-logger';
 
 interface UseThreadDataReturn {
   messages: UnifiedMessage[];
@@ -25,6 +27,22 @@ interface UseThreadDataReturn {
   projectQuery: ReturnType<typeof useProjectQuery>;
   agentRunsQuery: ReturnType<typeof useAgentRunsQuery>;
 }
+
+const mapApiMessageToUnified = (
+  msg: ApiMessageType,
+  threadId: string,
+): UnifiedMessage => ({
+  message_id: msg.message_id || null,
+  thread_id: msg.thread_id || threadId,
+  type: (msg.type || 'system') as UnifiedMessage['type'],
+  is_llm_message: Boolean(msg.is_llm_message),
+  content: msg.content || '',
+  metadata: msg.metadata || '{}',
+  created_at: msg.created_at || new Date().toISOString(),
+  updated_at: msg.updated_at || new Date().toISOString(),
+  agent_id: (msg as any).agent_id,
+  agents: (msg as any).agents,
+});
 
 export function useThreadData(threadId: string, projectId: string): UseThreadDataReturn {
   const [messages, setMessages] = useState<UnifiedMessage[]>([]);
@@ -49,7 +67,7 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
   const messagesQuery = useMessagesQuery(threadId);
 
   // 调试React Query状态
-  console.log('🔎 [useThreadData] messagesQuery完整状态:', {
+  debugLog('🔎 [useThreadData] messagesQuery完整状态:', {
     data: messagesQuery.data,
     status: messagesQuery.status,
     isLoading: messagesQuery.isLoading,
@@ -70,7 +88,7 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
     
     // 🔍 调试：始终显示状态变化
     if (prevStatus !== currentStatus) {
-      console.log(`🔄 [useThreadData] AgentStatus变化: ${prevStatus} → ${currentStatus}`);
+      debugLog(`🔄 [useThreadData] AgentStatus变化: ${prevStatus} → ${currentStatus}`);
     }
     
     // 🚀 关键修复：当开始运行时立即刷新项目数据（获取最新沙盒配置用于实时预览）
@@ -78,7 +96,7 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
       (prevStatus === 'idle' || prevStatus === 'error') && 
       (currentStatus === 'running' || currentStatus === 'connecting')
     ) {
-      console.log('🚀 [useThreadData] Agent开始运行，立即刷新项目数据获取VNC配置');
+      debugLog('🚀 [useThreadData] Agent开始运行，立即刷新项目数据获取VNC配置');
       projectQuery.refetch();
     }
     
@@ -88,13 +106,13 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
   // 🎯 管理流式保护标志
   useEffect(() => {
     if (agentStatus === 'running' || agentStatus === 'connecting') {
-      console.log('🛡️ [useThreadData] 启用流式保护 - agentStatus:', agentStatus);
+      debugLog('🛡️ [useThreadData] 启用流式保护 - agentStatus:', agentStatus);
       isStreamingOrRecentlyStreamedRef.current = true;
     } else if (agentStatus === 'idle') {
       // 延迟清除保护标志，给消息状态稳定一些时间
-      console.log('⏰ [useThreadData] 5秒后清除流式保护');
+      debugLog('⏰ [useThreadData] 5秒后清除流式保护');
       setTimeout(() => {
-        console.log('🔓 [useThreadData] 清除流式保护');
+        debugLog('🔓 [useThreadData] 清除流式保护');
         isStreamingOrRecentlyStreamedRef.current = false;
       }, 5000); // 增加到5秒
     }
@@ -136,8 +154,8 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
         }
 
         if (messagesQuery.data && !messagesLoadedRef.current) {
-          console.log('🔍 [useThreadData] 接收到消息数据:', messagesQuery.data);
-          console.log('🔍 [useThreadData] 消息数据详细分析:', {
+          debugLog('🔍 [useThreadData] 接收到消息数据:', messagesQuery.data);
+          debugLog('🔍 [useThreadData] 消息数据详细分析:', {
             isArray: Array.isArray(messagesQuery.data),
             length: messagesQuery.data?.length,
             types: messagesQuery.data?.map((m: any) => m.type),
@@ -145,42 +163,19 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
             rawData: JSON.stringify(messagesQuery.data, null, 2)
           });
 
-          const unifiedMessages = (messagesQuery.data || [])
-            .filter((msg: any) => msg.type !== 'status')
-            .map((msg: ApiMessageType) => ({
-              message_id: msg.message_id || null,
-              thread_id: msg.thread_id || threadId,
-              type: (msg.type || 'system') as UnifiedMessage['type'],
-              is_llm_message: Boolean(msg.is_llm_message),
-              content: msg.content || '',
-              metadata: msg.metadata || '{}',
-              created_at: msg.created_at || new Date().toISOString(),
-              updated_at: msg.updated_at || new Date().toISOString(),
-              agent_id: (msg as any).agent_id,
-              agents: (msg as any).agents,
-            }));
+          const unifiedMessages = (messagesQuery.data || []).map((msg: ApiMessageType) =>
+            mapApiMessageToUnified(msg, threadId),
+          );
             
-          console.log('🔍 [useThreadData] 过滤后的消息:', unifiedMessages);
-
-          // Merge with any local messages that are not present in server data yet
-          const serverIds = new Set(
-            unifiedMessages.map((m) => m.message_id).filter(Boolean) as string[],
-          );
-          const localExtras = (messages || []).filter(
-            (m) =>
-              !m.message_id ||
-              (typeof m.message_id === 'string' && m.message_id.startsWith('temp-')) ||
-              !serverIds.has(m.message_id as string),
-          );
-          const mergedMessages = [...unifiedMessages, ...localExtras].sort((a, b) => {
-            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return aTime - bTime;
+          debugLog('🔍 [useThreadData] 过滤后的消息:', unifiedMessages);
+          setMessages((prev) => {
+            const mergedMessages = mergeServerAndLocalMessages(unifiedMessages, prev, {
+              localMessageGracePeriodMs: 60_000,
+            });
+            debugLog('🔍 [useThreadData] 合并后的消息:', mergedMessages);
+            return mergedMessages;
           });
-
-          console.log('🔍 [useThreadData] 合并后的消息:', mergedMessages);
-          setMessages(mergedMessages);
-          console.log('🔍 [useThreadData] 消息已设置到state');
+          debugLog('🔍 [useThreadData] 消息已设置到state');
           // Messages set only from server merge; no cross-thread cache
           messagesLoadedRef.current = true;
 
@@ -190,7 +185,7 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
         }
 
         if (agentRunsQuery.data && !agentRunsCheckedRef.current && isMounted) {
-          console.log('🔍 [useThreadData] Processing agent runs:', {
+          debugLog('🔍 [useThreadData] Processing agent runs:', {
             total: agentRunsQuery.data.length,
             statuses: agentRunsQuery.data.map(r => ({ id: r.id, status: r.status }))
           });
@@ -199,25 +194,25 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
           
           // Check for any running agents - only connect to RUNNING agents!
           const runningRuns = agentRunsQuery.data.filter(r => r.status === 'running');
-          console.log('🏃 [useThreadData] Running agent runs:', runningRuns.length);
+          debugLog('🏃 [useThreadData] Running agent runs:', runningRuns.length);
           
           if (runningRuns.length > 0) {
             const latestRunning = runningRuns[0]; // Use first running agent
-            console.log('✅ [useThreadData] Found running agent:', latestRunning.id);
+            debugLog('✅ [useThreadData] Found running agent:', latestRunning.id);
             setAgentRunId(latestRunning.id);
             setAgentStatus((current) => {
               if (current !== 'running') {
-                console.log('✅ [useThreadData] Changed agentStatus to RUNNING');
+                debugLog('✅ [useThreadData] Changed agentStatus to RUNNING');
                 return 'running';
               }
               return current;
             });
           } else {
             // For historical conversations, don't set any agentRunId
-            console.log('💤 [useThreadData] No running agents found - this is likely a historical conversation');
+            debugLog('💤 [useThreadData] No running agents found - this is likely a historical conversation');
             setAgentStatus((current) => {
               if (current !== 'idle') {
-                console.log('✅ [useThreadData] Changed agentStatus to IDLE');
+                debugLog('✅ [useThreadData] Changed agentStatus to IDLE');
                 return 'idle';
               }
               return current;
@@ -264,16 +259,15 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
 
   // Force message reload when thread changes or new data arrives
   useEffect(() => {
-    console.log('📡 [useThreadData] useEffect triggered:', {
+    debugLog('📡 [useThreadData] useEffect triggered:', {
       messagesQueryDataLength: messagesQuery.data?.length || 0,
       messagesQueryStatus: messagesQuery.status,
       isLoading,
-      currentMessagesLength: messages.length,
       threadId,
       timestamp: Date.now()
     });
     
-    console.log('📡 [useThreadData] 详细检查条件:', {
+    debugLog('📡 [useThreadData] 详细检查条件:', {
       hasMessagesQueryData: !!messagesQuery.data,
       messagesQueryData: messagesQuery.data,
       statusIsSuccess: messagesQuery.status === 'success',
@@ -282,109 +276,40 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
     });
     
     if (messagesQuery.data && messagesQuery.status === 'success' && !isLoading) {
-      // (debug logs removed)
-      
-      // Always reload messages when thread data changes or we have more raw messages than processed
-      // 🎯 简化保护逻辑：主要依赖流式保护标志
-      const shouldReload = messages.length === 0 || 
-        (messagesQuery.data.length > messages.length + 50 && 
-         !isStreamingOrRecentlyStreamedRef.current);
-      
-      console.log('🔄 [useThreadData] shouldReload检查:', {
-        messagesLength: messages.length,
-        queryDataLength: messagesQuery.data.length,
-        isStreamingOrRecentlyStreamed: isStreamingOrRecentlyStreamedRef.current,
-        agentStatus,
-        condition1: messages.length === 0,
-        condition2: messagesQuery.data.length > messages.length + 50,
-        shouldReload
-      });
-      
-      if (shouldReload) {
-        // (debug logs removed)
-        
-        const unifiedMessages = (messagesQuery.data || [])
-          .filter((msg) => msg.type !== 'status')
-          .map((msg: ApiMessageType) => ({
-            message_id: msg.message_id || null,
-            thread_id: msg.thread_id || threadId,
-            type: (msg.type || 'system') as UnifiedMessage['type'],
-            is_llm_message: Boolean(msg.is_llm_message),
-            content: msg.content || '',
-            metadata: msg.metadata || '{}',
-            created_at: msg.created_at || new Date().toISOString(),
-            updated_at: msg.updated_at || new Date().toISOString(),
-            agent_id: (msg as any).agent_id,
-            agents: (msg as any).agents,
-          }));
+      const unifiedMessages = (messagesQuery.data || []).map((msg: ApiMessageType) =>
+        mapApiMessageToUnified(msg, threadId),
+      );
 
-        // Merge strategy: preserve any local (optimistic/streamed) messages not in server yet
-        setMessages((prev) => {
-          const serverIds = new Set(
-            unifiedMessages.map((m) => m.message_id).filter(Boolean) as string[],
-          );
-          
-          // 🎯 增强保护：保护最近的流式消息（可能还没同步到服务器）
-          const recentThreshold = Date.now() - 60000; // 1分钟内的消息
-          const localExtras = (prev || []).filter(
-            (m) =>
-              !m.message_id ||
-              (typeof m.message_id === 'string' && m.message_id.startsWith('temp-')) ||
-              !serverIds.has(m.message_id as string) ||
-              // 保护最近的流式助手消息，即使服务器已有ID
-              (m.type === 'assistant' && 
-               new Date(m.created_at).getTime() > recentThreshold &&
-               !unifiedMessages.find(sm => sm.message_id === m.message_id && sm.content === m.content))
-          );
-          
-                     console.log('🔄 [useThreadData] 消息合并详情:', {
-             serverMessages: unifiedMessages.length,
-             localExtras: localExtras.length,
-             recentProtected: localExtras.filter(m => 
-               m.type === 'assistant' && new Date(m.created_at).getTime() > recentThreshold
-             ).length
-           });
-          
-          const merged = [...unifiedMessages, ...localExtras].sort((a, b) => {
-            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-            return aTime - bTime;
-          });
-          
-          // 🎯 深度比较：只有内容真正改变时才更新引用（基于测试页面成功经验）
-          
-          if (prev && prev.length === merged.length) {
-            const hasChanges = prev.some((prevMsg, index) => {
-              const mergedMsg = merged[index];
-              return !mergedMsg || 
-                     prevMsg.message_id !== mergedMsg.message_id ||
-                     prevMsg.content !== mergedMsg.content ||
-                     prevMsg.type !== mergedMsg.type ||
-                     prevMsg.metadata !== mergedMsg.metadata;
-            });
-            
-
-            
-            if (!hasChanges) {
-              console.log('✅ [useThreadData] Messages unchanged, reusing prev reference');
-              return prev; // 🎯 返回相同引用，避免无限循环
-            }
-          }
-          
-          console.log('🔄 [useThreadData] setMessages called:', {
-            prevLength: prev?.length || 0,
-            unifiedMessagesLength: unifiedMessages.length,
-            localExtrasLength: localExtras.length,
-            mergedLength: merged.length,
-            timestamp: Date.now()
-          });
-          
-          // Messages set only from server merge; no cross-thread cache
-          return merged;
+      setMessages((prev) => {
+        const merged = mergeServerAndLocalMessages(unifiedMessages, prev, {
+          localMessageGracePeriodMs: 60_000,
         });
-      } else {
-        // (debug logs removed)
-      }
+
+        if (prev && prev.length === merged.length) {
+          const hasChanges = prev.some((prevMsg, index) => {
+            const mergedMsg = merged[index];
+            return !mergedMsg ||
+                   prevMsg.message_id !== mergedMsg.message_id ||
+                   prevMsg.content !== mergedMsg.content ||
+                   prevMsg.type !== mergedMsg.type ||
+                   prevMsg.metadata !== mergedMsg.metadata;
+          });
+
+          if (!hasChanges) {
+            debugLog('✅ [useThreadData] Messages unchanged, reusing prev reference');
+            return prev;
+          }
+        }
+
+        debugLog('🔄 [useThreadData] setMessages called:', {
+          prevLength: prev?.length || 0,
+          unifiedMessagesLength: unifiedMessages.length,
+          mergedLength: merged.length,
+          timestamp: Date.now()
+        });
+
+        return merged;
+      });
     }
   }, [messagesQuery.data, messagesQuery.status, isLoading, threadId]); // [MESSAGE RELOAD LOOP] - 移除 messages.length 避免循环依赖
 
@@ -407,3 +332,4 @@ export function useThreadData(threadId: string, projectId: string): UseThreadDat
     agentRunsQuery,
   };
 } 
+

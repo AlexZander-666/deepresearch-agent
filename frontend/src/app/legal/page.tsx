@@ -6,6 +6,7 @@ import { FlickeringGrid } from '@/components/home/ui/flickering-grid';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { ArrowLeft } from 'lucide-react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { getLegalTabFromParam, getNextLegalTabUrl, type LegalTab } from './tab-sync';
 
 function LegalContent() {
   const searchParams = useSearchParams();
@@ -14,44 +15,28 @@ function LegalContent() {
 
   // Get tab from URL or default to "terms"
   const tabParam = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState<'terms' | 'privacy'>(
-    tabParam === 'terms' || tabParam === 'privacy' ? tabParam : 'terms',
-  );
+  const [activeTab, setActiveTab] = useState<LegalTab>(getLegalTabFromParam(tabParam));
 
   const tablet = useMediaQuery('(max-width: 1024px)');
   const [mounted, setMounted] = useState(false);
   const [isScrolling, setIsScrolling] = useState(false);
 
-  // Function to update URL without refreshing the page
-  const updateUrl = (tab: string) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('tab', tab);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-  };
-
   useEffect(() => {
     setMounted(true);
-
-    // Update the URL if it doesn't match the active tab
-    if (tabParam !== activeTab) {
-      updateUrl(activeTab);
-    }
-  }, [tabParam, activeTab, updateUrl]);
-
-  // Update the URL when the tab changes
-  useEffect(() => {
-    updateUrl(activeTab);
-  }, [activeTab, updateUrl]);
+  }, []);
 
   // Update the active tab when URL changes
   useEffect(() => {
-    if (tabParam === 'terms' || tabParam === 'privacy') {
-      setActiveTab(tabParam);
-    }
+    const nextTab = getLegalTabFromParam(tabParam);
+    setActiveTab(nextTab);
   }, [tabParam]);
 
   // Handle tab change
-  const handleTabChange = (tab: 'terms' | 'privacy') => {
+  const handleTabChange = (tab: LegalTab) => {
+    const nextUrl = getNextLegalTabUrl(pathname, searchParams, tab);
+    if (nextUrl) {
+      router.replace(nextUrl, { scroll: false });
+    }
     setActiveTab(tab);
   };
 

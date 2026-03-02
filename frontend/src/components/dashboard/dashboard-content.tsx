@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense, useEffect, useRef } from 'react';
+import React, { useState, Suspense, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -8,19 +8,13 @@ import {
   ChatInputHandles,
 } from '@/components/thread/chat-input/chat-input';
 import {
-  BillingError,
   AgentRunLimitError,
 } from '@/lib/api';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useBillingError } from '@/hooks/useBillingError';
-import { BillingErrorAlert } from '@/components/billing/usage-limit-alert';
-import { useAccounts } from '@/hooks/use-accounts';
 import { config, isLocalMode, isStagingMode } from '@/lib/config';
 import { useInitiateAgentWithInvalidation } from '@/hooks/react-query/dashboard/use-initiate-agent';
-import { ModalProviders } from '@/providers/modal-providers';
 import { useAgents } from '@/hooks/react-query/agents/use-agents';
 import { cn } from '@/lib/utils';
-import { useModal } from '@/hooks/use-modal-store';
 import { useAgentSelection } from '@/lib/stores/agent-selection-store';
 import { Examples } from './examples';
 import { useThreadQuery } from '@/hooks/react-query/threads/use-threads';
@@ -45,8 +39,6 @@ export function DashboardContent() {
     getCurrentAgent
   } = useAgentSelection();
   const [initiatedThreadId, setInitiatedThreadId] = useState<string | null>(null);
-  const { billingError, handleBillingError, clearBillingError } =
-    useBillingError();
   const [showAgentLimitDialog, setShowAgentLimitDialog] = useState(false);
   const [agentLimitData, setAgentLimitData] = useState<{
     runningCount: number;
@@ -55,11 +47,8 @@ export function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isMobile = useIsMobile();
-  const { data: accounts } = useAccounts();
-  const personalAccount = accounts?.find((account) => account.personal_account);
   const chatInputRef = useRef<ChatInputHandles>(null);
   const initiateAgentMutation = useInitiateAgentWithInvalidation();
-  const { onOpen } = useModal();
 
   // Feature flag for custom agents section
   const { enabled: customAgentsEnabled } = useFeatureFlag('custom_agents');
@@ -71,11 +60,11 @@ export function DashboardContent() {
     sort_order: 'asc'
   });
 
-  const agents = agentsResponse?.agents || [];
+  const agents = useMemo(() => agentsResponse?.agents || [], [agentsResponse?.agents]);
   const selectedAgent = selectedAgentId
     ? agents.find(agent => agent.agent_id === selectedAgentId)
     : null;
-  const displayName = selectedAgent?.name || 'FuFanManus';
+  const displayName = selectedAgent?.name || 'AlexManus';
   const agentAvatar = undefined;
   const isSunaAgent = selectedAgent?.metadata?.is_suna_default || false;
 
@@ -94,7 +83,7 @@ export function DashboardContent() {
       console.log('📞 Calling initializeFromAgents');
       initializeFromAgents(agents, undefined, setSelectedAgent);
     }
-  }, [agents, initializeFromAgents, setSelectedAgent]);
+  }, [agents, selectedAgentId, initializeFromAgents, setSelectedAgent]);
 
   useEffect(() => {
     const agentIdFromUrl = searchParams.get('agent_id');
@@ -118,10 +107,11 @@ export function DashboardContent() {
     }
   }, [threadQuery.data, initiatedThreadId, router]);
 
-  const handleSubmit = async (
+  const handleSubmit = useCallback(async (
     message: string,
     options?: {
       model_name?: string;
+      model_provider?: 'dashscope' | 'siliconflow';
       enable_thinking?: boolean;
       reasoning_effort?: string;
       stream?: boolean;
@@ -154,6 +144,7 @@ export function DashboardContent() {
       });
 
       if (options?.model_name) formData.append('model_name', options.model_name);
+      if (options?.model_provider) formData.append('model_provider', options.model_provider);
       formData.append('enable_thinking', String(options?.enable_thinking ?? false));
       formData.append('reasoning_effort', options?.reasoning_effort ?? 'low');
       formData.append('stream', String(options?.stream ?? true));
@@ -169,9 +160,7 @@ export function DashboardContent() {
       chatInputRef.current?.clearPendingFiles();
     } catch (error: any) {
       console.error('Error during submission process:', error);
-      if (error instanceof BillingError) {
-        onOpen("paymentRequiredDialog");
-      } else if (error instanceof AgentRunLimitError) {
+      if (error instanceof AgentRunLimitError) {
         const { running_thread_ids, running_count } = error.detail;
         setAgentLimitData({
           runningCount: running_count,
@@ -185,7 +174,7 @@ export function DashboardContent() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, selectedAgentId, initiateAgentMutation]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -209,11 +198,10 @@ export function DashboardContent() {
 
       return () => clearTimeout(timer);
     }
-  }, [autoSubmit, inputValue, isSubmitting]);
+  }, [autoSubmit, inputValue, isSubmitting, handleSubmit]);
 
   return (
     <>
-      <ModalProviders />
       <div className="flex flex-col h-screen w-full overflow-hidden">
         <div className="flex-1 overflow-y-auto">
           <div className="min-h-full flex flex-col">
@@ -256,15 +244,6 @@ export function DashboardContent() {
             )}
           </div>
         </div>
-        
-        <BillingErrorAlert
-          message={billingError?.message}
-          currentUsage={billingError?.currentUsage}
-          limit={billingError?.limit}
-          accountId={personalAccount?.account_id}
-          onDismiss={clearBillingError}
-          isOpen={!!billingError}
-        />
       </div>
 
       {agentLimitData && (

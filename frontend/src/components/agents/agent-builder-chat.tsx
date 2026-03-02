@@ -213,6 +213,7 @@ export const AgentBuilderChat = React.memo(function AgentBuilderChat({
     message: string,
     options?: {
       model_name?: string;
+      model_provider?: 'dashscope' | 'siliconflow';
       enable_thinking?: boolean;
       reasoning_effort?: string;
       stream?: boolean;
@@ -239,6 +240,7 @@ export const AgentBuilderChat = React.memo(function AgentBuilderChat({
       });
 
       if (options?.model_name) agentFormData.append('model_name', options.model_name);
+      if (options?.model_provider) agentFormData.append('model_provider', options.model_provider);
       agentFormData.append('enable_thinking', String(options?.enable_thinking ?? false));
       agentFormData.append('reasoning_effort', options?.reasoning_effort ?? 'low');
       agentFormData.append('stream', String(options?.stream ?? true));
@@ -284,7 +286,13 @@ export const AgentBuilderChat = React.memo(function AgentBuilderChat({
   const handleSubmitMessage = useCallback(
     async (
       message: string,
-      options?: { model_name?: string; enable_thinking?: boolean; reasoning_effort?: string; enable_context_manager?: boolean },
+      options?: {
+        model_name?: string;
+        model_provider?: 'dashscope' | 'siliconflow';
+        enable_thinking?: boolean;
+        reasoning_effort?: string;
+        enable_context_manager?: boolean;
+      },
     ) => {
       if (!message.trim() || !threadId) return;
       setIsSubmitting(true);

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-FuFanManus (Kortix Frontend) is a Next.js 15-based AI agent platform frontend that enables users to interact with intelligent agents for task automation, data analysis, and research. The application uses a custom authentication system (no Supabase), React Query for state management, and communicates with a Python FastAPI backend.
+AlexManus (Kortix Frontend) is a Next.js 15-based AI agent platform frontend that enables users to interact with intelligent agents for task automation, data analysis, and research. The application uses a custom authentication system (no Supabase), React Query for state management, and communicates with a Python FastAPI backend.
 
 ## Development Commands
 

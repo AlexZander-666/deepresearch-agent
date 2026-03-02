@@ -67,7 +67,7 @@ export function ConfigurationTab({
 }: ConfigurationTabProps) {
   const isSunaAgent = agentMetadata?.is_suna_default || false;
 
-  const mapAccordion = (val?: string) => {
+  const mapAccordion = React.useCallback((val?: string) => {
     if (val === 'instructions') return isSunaAgent ? 'integrations' : 'system';
     if (val === 'workflows') return 'playbooks';
     if (isSunaAgent && (val === 'system' || val === 'tools')) {
@@ -77,14 +77,14 @@ export function ConfigurationTab({
       return val!;
     }
     return isSunaAgent ? 'integrations' : 'system';
-  };
+  }, [isSunaAgent]);
 
   const [openAccordion, setOpenAccordion] = React.useState<string>(mapAccordion(initialAccordion));
   React.useEffect(() => {
     if (initialAccordion) {
       setOpenAccordion(mapAccordion(initialAccordion));
     }
-  }, [initialAccordion]);
+  }, [initialAccordion, mapAccordion]);
   const restrictions = agentMetadata?.restrictions || {};
 
   const isSystemPromptEditable = !isViewingOldVersion && (restrictions.system_prompt_editable !== false);

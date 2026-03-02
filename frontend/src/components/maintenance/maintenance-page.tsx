@@ -13,7 +13,11 @@ import { isLocalMode } from '@/lib/config';
 export function MaintenancePage() {
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   
-  const { data: healthData, isLoading: isCheckingHealth, refetch } = useApiHealth();
+  const { isFetching: isCheckingHealth, refetch } = useApiHealth({
+    enabled: false,
+    retry: 0,
+    refetchOnWindowFocus: false,
+  });
 
   const checkHealth = async () => {
     try {

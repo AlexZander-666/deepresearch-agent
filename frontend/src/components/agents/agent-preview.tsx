@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -168,6 +169,7 @@ export const AgentPreview = ({ agent, agentMetadata }: AgentPreviewProps) => {
     message: string,
     options?: {
       model_name?: string;
+      model_provider?: 'dashscope' | 'siliconflow';
       enable_thinking?: boolean;
       reasoning_effort?: string;
       stream?: boolean;
@@ -192,6 +194,7 @@ export const AgentPreview = ({ agent, agentMetadata }: AgentPreviewProps) => {
       });
 
       if (options?.model_name) formData.append('model_name', options.model_name);
+      if (options?.model_provider) formData.append('model_provider', options.model_provider);
       formData.append('enable_thinking', String(options?.enable_thinking ?? false));
       formData.append('reasoning_effort', options?.reasoning_effort ?? 'low');
       formData.append('stream', String(options?.stream ?? true));
@@ -246,7 +249,11 @@ export const AgentPreview = ({ agent, agentMetadata }: AgentPreviewProps) => {
   const handleSubmitMessage = useCallback(
     async (
       message: string,
-      options?: { model_name?: string; enable_thinking?: boolean },
+      options?: {
+        model_name?: string;
+        model_provider?: 'dashscope' | 'siliconflow';
+        enable_thinking?: boolean;
+      },
     ) => {
       if (!message.trim() || !threadId) return;
       setIsSubmitting(true);

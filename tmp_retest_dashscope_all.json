@@ -1,0 +1,91 @@
+[
+  {
+    "case": "deep",
+    "thread_id": "04aac13f-09e6-4038-b1bd-24c68b9cea00",
+    "anchor_created_at": "2026-03-02T06:04:31.090212+00:00",
+    "scoped_message_count": 26,
+    "thread_run_ids": [
+      "ba2f0b92-8b5a-4f48-8d16-556246e9eafa",
+      "50bd242e-9378-44e6-8da0-fe804088c0a9",
+      "be23d4d3-51d3-4c97-a512-fcf9301d566f"
+    ],
+    "tool_summary": {
+      "view_tasks": {
+        "completed": 1,
+        "failed": 0,
+        "error": 0
+      },
+      "create_tasks": {
+        "completed": 0,
+        "failed": 2,
+        "error": 0
+      }
+    },
+    "assistant_count": 6,
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- Tasks\n- REST Resource: tasks | Google for Developers\n- 开发者的测试复盘：架构分层测试策略与工具链闭环设计实战-CSDN博客\n\n三、工具执行记录\n- web_search",
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ]
+  },
+  {
+    "case": "browser",
+    "thread_id": "ffc1b1cb-9c51-4a9d-9b16-a5b846170454",
+    "anchor_created_at": "2026-03-02T06:05:09.853652+00:00",
+    "scoped_message_count": 62,
+    "thread_run_ids": [
+      "913b003e-dc49-4c1a-9c4f-2c051ea3912a",
+      "8e9b34bf-bc4c-4b36-a607-51fa5d0a25c9",
+      "43da2fe6-1050-4b11-b1ba-fed152e38409",
+      "b5a72242-6c75-4803-a2a8-2d66688bf21e",
+      "b4344834-31df-4865-b04d-65154a25a59c",
+      "28e853ee-fed1-4bce-a2bd-795ca716337d",
+      "205e4684-daa3-40bc-bb05-ffd476f1f12e",
+      "8c97ffc9-f0a1-4bc9-a6ac-ab48bc3126e9"
+    ],
+    "tool_summary": {
+      "screenshot": {
+        "completed": 0,
+        "failed": 4,
+        "error": 0
+      },
+      "browser_wait": {
+        "completed": 1,
+        "failed": 0,
+        "error": 0
+      },
+      "move_to": {
+        "completed": 0,
+        "failed": 1,
+        "error": 0
+      },
+      "web_search": {
+        "completed": 1,
+        "failed": 0,
+        "error": 0
+      }
+    },
+    "assistant_count": 15,
+    "final_assistant_synthetic": "structured_research_summary",
+    "final_assistant_preview": "基于当前已收集证据的结构化总结如下：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 以下内容优先基于已执行工具返回的事实证据进行整理。\n\n二、关键证据（基于检索标题）\n- Whois example.com\n- Typo traps: analyzing traffic to exmaple.com (or is it ...\n- What's the example.com domain? - PlotHost\n\n三、工具执行记录\n- web_",
+    "synthetic_kinds_in_scope": [
+      "structured_research_summary"
+    ]
+  },
+  {
+    "case": "sandbox",
+    "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+    "anchor_created_at": "2026-03-02T06:06:01.589369+00:00",
+    "scoped_message_count": 6,
+    "thread_run_ids": [
+      "78059740-0470-4322-bf11-9df038500c51"
+    ],
+    "tool_summary": {},
+    "assistant_count": 2,
+    "final_assistant_synthetic": "web_search_fallback_summary",
+    "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- “计算机使用”模型和工具| Generative AI on Vertex AI\n- 5.1 Computer Use 能力概述 - 前言| claude_guide Claude 技术指南\n- 计算机使用| Gemini ",
+    "synthetic_kinds_in_scope": [
+      "web_search_fallback_summary"
+    ]
+  }
+]

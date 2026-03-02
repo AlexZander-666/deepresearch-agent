@@ -1,3 +1,4 @@
+﻿/* eslint-disable @next/next/no-img-element -- Component renders dynamic/external image URLs where native <img> is currently intentional. */
 import React from 'react';
 import { ContentFormat, FormatDetectionResult } from './mcp-format-detector';
 import { MarkdownRenderer } from '@/components/file-renderers/markdown-renderer';

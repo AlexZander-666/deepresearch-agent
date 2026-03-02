@@ -1,0 +1,19 @@
+{
+  "case": "sandbox",
+  "thread_id": "c38fe097-6b6c-443b-8503-2d766152ada5",
+  "run_id": "011fb433-bd08-4de1-a3ec-e604a2272612",
+  "status": "completed",
+  "elapsed_s": 18.1,
+  "anchor_created_at": "2026-03-02T06:15:50.189859+00:00",
+  "scoped_message_count": 6,
+  "thread_run_ids": [
+    "21580de1-889c-4b0d-9b62-bc0ef444c251"
+  ],
+  "tool_summary": {},
+  "assistant_count": 2,
+  "synthetic_kinds_in_scope": [
+    "web_search_fallback_summary"
+  ],
+  "final_assistant_synthetic": "web_search_fallback_summary",
+  "final_assistant_preview": "已触发自动兜底收敛流程。以下是基于当前可用证据生成的结构化报告：\n\n一、结论\n- 当前回合已完成自动化证据收集，并输出可复核的来源列表。\n- 若工具链在中途循环中断，本报告属于快速收敛版本，建议在下一轮补充更细分数据。\n\n二、关键证据（基于检索标题）\n- Manus让电脑使用再度翻红，一文带你全面认知Computer Use Agent\n- 8种方法来在微软Windows系统中屏幕截图\n- Claude可代替人手操控電腦！怎麼用？官網與中文使用教學 - 遠見雜誌\n\n三、工具执行记录\n- web_search：提取到 5 条候选来源。\n- computer"
+}

@@ -1,14 +1,15 @@
-FROM ghcr.io/astral-sh/uv:python3.11-alpine
+FROM python:3.11-slim
 
 ENV ENV_MODE production
 WORKDIR /app
 
-RUN apk add --no-cache curl git
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl git build-essential libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY pyproject.toml uv.lock ./
-ENV UV_LINK_MODE=copy
-RUN --mount=type=cache,target=/root/.cache/uv uv sync --locked --quiet
+COPY requirements.txt constraints.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -c constraints.txt
 
 # Copy application code
 COPY . .
@@ -23,7 +24,7 @@ ENV PYTHONPATH=/app
 EXPOSE 8000
 
 # Gunicorn configuration
-CMD ["sh", "-c", "uv run gunicorn api:app \
+CMD ["sh", "-c", "gunicorn api:app \
   --workers $WORKERS \
   --worker-class uvicorn.workers.UvicornWorker \
   --bind 0.0.0.0:8000 \

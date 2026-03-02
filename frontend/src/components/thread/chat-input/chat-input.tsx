@@ -4,6 +4,7 @@ import React, {
   useState,
   useRef,
   useEffect,
+  useMemo,
   forwardRef,
   useImperativeHandle,
 } from 'react';
@@ -25,12 +26,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 import { IntegrationsRegistry } from '@/components/agents/integrations-registry';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useSubscriptionWithStreaming } from '@/hooks/react-query/subscriptions/use-subscriptions';
-import { isLocalMode } from '@/lib/config';
-import { BillingModal } from '@/components/billing/billing-modal';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import posthog from 'posthog-js';
+import { isDeepSeekModel, type ModelProvider } from '@/lib/model-provider';
 
 export interface ChatInputHandles {
   getPendingFiles: () => File[];
@@ -42,6 +40,7 @@ export interface ChatInputProps {
     message: string,
     options?: {
       model_name?: string;
+      model_provider?: ModelProvider;
       enable_thinking?: boolean;
       agent_id?: string;
     },
@@ -127,7 +126,6 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
   ) => {
     const isControlled =
       controlledValue !== undefined && controlledOnChange !== undefined;
-    const router = useRouter();
 
     const [uncontrolledValue, setUncontrolledValue] = useState('');
     const value = isControlled ? controlledValue : uncontrolledValue;
@@ -140,13 +138,12 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
     const [isDraggingOver, setIsDraggingOver] = useState(false);
 
     const [registryDialogOpen, setRegistryDialogOpen] = useState(false);
-    const [showSnackbar, setShowSnackbar] = useState(defaultShowSnackbar);
-    const [userDismissedUsage, setUserDismissedUsage] = useState(false);
-    const [billingModalOpen, setBillingModalOpen] = useState(false);
 
     const {
       selectedModel,
       setSelectedModel: handleModelChange,
+      selectedProvider,
+      setSelectedProvider: handleProviderChange,
       subscriptionStatus,
       allModels: modelOptions,
       canAccessModel,
@@ -154,7 +151,6 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
       refreshCustomModels,
     } = useModelSelection();
 
-    const { data: subscriptionData } = useSubscriptionWithStreaming(isAgentRunning);
     const deleteFileMutation = useFileDelete();
     const queryClient = useQueryClient();
 
@@ -164,38 +160,11 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
     const { data: slackIcon } = useComposioToolkitIcon('slack', { enabled: shouldFetchIcons });
     const { data: notionIcon } = useComposioToolkitIcon('notion', { enabled: shouldFetchIcons });
 
-    // Show usage preview logic:
-    // - Always show to free users when showToLowCreditUsers is true
-    // - For paid users, only show when they're at 70% or more of their cost limit (30% or below remaining)
-    const shouldShowUsage = !isLocalMode() && subscriptionData && showToLowCreditUsers && (() => {
-      // Free users: always show
-      if (subscriptionStatus === 'no_subscription') {
-        return true;
-      }
-
-      // Paid users: only show when at 70% or more of cost limit
-      const currentUsage = subscriptionData.current_usage || 0;
-      const costLimit = subscriptionData.cost_limit || 0;
-
-      if (costLimit === 0) return false; // No limit set
-
-      return currentUsage >= (costLimit * 0.7); // 70% or more used (30% or less remaining)
-    })();
-
-    // Auto-show usage preview when we have subscription data
-    useEffect(() => {
-      if (shouldShowUsage && defaultShowSnackbar !== false && !userDismissedUsage && (showSnackbar === false || showSnackbar === defaultShowSnackbar)) {
-        setShowSnackbar('upgrade');
-      } else if (!shouldShowUsage && showSnackbar !== false) {
-        setShowSnackbar(false);
-      }
-    }, [subscriptionData, showSnackbar, defaultShowSnackbar, shouldShowUsage, subscriptionStatus, showToLowCreditUsers, userDismissedUsage]);
-
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const { data: agentsResponse } = useAgents({}, { enabled: isLoggedIn });
-    const agents = agentsResponse?.agents || [];
+    const agents = useMemo(() => agentsResponse?.agents || [], [agentsResponse?.agents]);
 
     const { initializeFromAgents } = useAgentSelection();
     useImperativeHandle(ref, () => ({
@@ -252,6 +221,9 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
       onSubmit(message, {
         agent_id: selectedAgentId,
         model_name: baseModelName,
+        model_provider: isDeepSeekModel(baseModelName)
+          ? selectedProvider
+          : undefined,
         enable_thinking: thinkingEnabled,
       });
 
@@ -340,18 +312,15 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
             onExpandToolPreview={onExpandToolPreview}
             agentName={agentName}
             showToolPreview={showToolPreview}
-            showUsagePreview={showSnackbar}
-            subscriptionData={subscriptionData}
-            onCloseUsage={() => { setShowSnackbar(false); setUserDismissedUsage(true); }}
-            onOpenUpgrade={() => setBillingModalOpen(true)}
-            isVisible={showToolPreview || !!showSnackbar}
+            showUsagePreview={false}
+            isVisible={showToolPreview}
           />
 
           {/* Scroll to bottom button */}
           {showScrollToBottomIndicator && onScrollToBottom && (
             <button
               onClick={onScrollToBottom}
-              className={`absolute cursor-pointer right-3 z-50 w-8 h-8 rounded-full bg-card border border-border transition-all duration-200 hover:scale-105 flex items-center justify-center ${showToolPreview || !!showSnackbar ? '-top-12' : '-top-5'
+              className={`absolute cursor-pointer right-3 z-50 w-8 h-8 rounded-full bg-card border border-border transition-all duration-200 hover:scale-105 flex items-center justify-center ${showToolPreview ? '-top-12' : '-top-5'
                 }`}
               title="Scroll to bottom"
             >
@@ -415,6 +384,8 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
 
                   selectedModel={selectedModel}
                   onModelChange={handleModelChange}
+                  selectedProvider={selectedProvider}
+                  onProviderChange={handleProviderChange}
                   modelOptions={modelOptions}
                   subscriptionStatus={subscriptionStatus}
                   canAccessModel={canAccessModel}
@@ -517,10 +488,6 @@ export const ChatInput = forwardRef<ChatInputHandles, ChatInputProps>(
               />
             </DialogContent>
           </Dialog>
-          <BillingModal
-            open={billingModalOpen}
-            onOpenChange={setBillingModalOpen}
-          />
         </div>
       </div>
     );

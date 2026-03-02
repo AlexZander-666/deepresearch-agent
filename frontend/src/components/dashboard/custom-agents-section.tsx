@@ -203,6 +203,7 @@ export function CustomAgentsSection({ onAgentSelect }: CustomAgentsSectionProps)
               <div className="h-full relative flex overflow-hidden w-full">
                 <div className="flex items-center justify-center p-4">
                   {template.profile_image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- Marketplace template images are externally hosted and not domain-restricted in config.
                     <img 
                       src={template.profile_image_url}
                       alt={template.name}

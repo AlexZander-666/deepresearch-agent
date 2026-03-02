@@ -8,24 +8,28 @@ import React, {
   useMemo,
 } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { BillingError, AgentRunLimitError } from '@/lib/api';
+import { AgentRunLimitError } from '@/lib/api';
 import { toast } from 'sonner';
 import { ChatInput } from '@/components/thread/chat-input/chat-input';
 import { useSidebar } from '@/components/ui/sidebar';
 import { useAgentStream } from '@/hooks/useAgentStream';
+import {
+  isAgentRunNotRunningError,
+  isProviderAccountStreamError,
+  isRecoverableAgentStreamError,
+  toDisplayAgentStreamError,
+} from '@/hooks/agent-stream-error-utils';
 import { cn } from '@/lib/utils';
+import { debugLog } from '@/lib/client-logger';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { isLocalMode } from '@/lib/config';
 import { ThreadContent } from '@/components/thread/content/ThreadContent';
 import { ThreadSkeleton } from '@/components/thread/content/ThreadSkeleton';
 import { useAddUserMessageMutation } from '@/hooks/react-query/threads/use-messages';
 import { useStartAgentMutation, useStopAgentMutation } from '@/hooks/react-query/threads/use-agent-run';
-import { useSubscription } from '@/hooks/react-query/subscriptions/use-subscriptions';
-import { SubscriptionStatus } from '@/components/thread/chat-input/_use-model-selection';
 
 import { UnifiedMessage, ApiMessageType, ToolCallInput, Project } from '../_types';
 import { useThreadData, useToolCalls, useBilling, useKeyboardShortcuts } from '../_hooks';
-import { ThreadError, UpgradeDialog, ThreadLayout } from '../_components';
+import { ThreadError, ThreadLayout } from '../_components';
 import { useVncPreloader } from '@/hooks/useVncPreloader';
 import { useThreadAgent, useAgents } from '@/hooks/react-query/agents/use-agents';
 import { AgentRunLimitDialog } from '@/components/thread/agent-run-limit-dialog';
@@ -51,7 +55,6 @@ function ThreadPageContent({
   const [fileViewerOpen, setFileViewerOpen] = useState(false);
   const [fileToView, setFileToView] = useState<string | null>(null);
   const [filePathList, setFilePathList] = useState<string[] | undefined>(undefined);
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
   const [initialPanelOpenAttempted, setInitialPanelOpenAttempted] = useState(false);
   // Use Zustand store for agent selection persistence
@@ -64,7 +67,7 @@ function ThreadPageContent({
   } = useAgentSelection();
   
   const { data: agentsResponse } = useAgents();
-  const agents = agentsResponse?.agents || [];
+  const agents = useMemo(() => agentsResponse?.agents || [], [agentsResponse?.agents]);
   const [isSidePanelAnimating, setIsSidePanelAnimating] = useState(false);
   const [userInitiatedRun, setUserInitiatedRun] = useState(false);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -105,7 +108,7 @@ function ThreadPageContent({
 
   // 简化调试信息
   React.useEffect(() => {
-    console.log('🔍 [ThreadPage] messages状态:', {
+    debugLog('🔍 [ThreadPage] messages状态:', {
       length: messages?.length,
       types: messages?.reduce((acc, msg) => {
         acc[msg.type] = (acc[msg.type] || 0) + 1;
@@ -134,7 +137,7 @@ function ThreadPageContent({
   
   // 调试toolCalls状态
   React.useEffect(() => {
-    console.log('🔧 [ThreadPage] toolCalls状态:', {
+    debugLog('🔧 [ThreadPage] toolCalls状态:', {
       length: toolCalls.length,
       toolCalls: toolCalls,
       currentIndex: currentToolIndex,
@@ -146,7 +149,7 @@ function ThreadPageContent({
   const prevAgentStatusRef = React.useRef(agentStatus);
   React.useEffect(() => {
     if (prevAgentStatusRef.current !== agentStatus) {
-      console.log('🚨 [agentStatus] CHANGED:', {
+      debugLog('🚨 [agentStatus] CHANGED:', {
         from: prevAgentStatusRef.current,
         to: agentStatus,
         timestamp: Date.now()
@@ -159,9 +162,6 @@ function ThreadPageContent({
     showBillingAlert,
     setShowBillingAlert,
     billingData,
-    setBillingData,
-    checkBillingLimits,
-    billingStatusQuery,
   } = useBilling(project?.account_id, agentStatus, initialLoadCompleted);
 
   // Keyboard shortcuts
@@ -192,12 +192,7 @@ function ThreadPageContent({
     }
   }, [threadAgentData, agents, initializeFromAgents]);
 
-  const { data: subscriptionData } = useSubscription();
-  const subscriptionStatus: SubscriptionStatus = subscriptionData?.status === 'active'
-    ? 'active'
-    : 'no_subscription';
-
-  const memoizedProject = useMemo(() => project, [project?.id, project?.sandbox?.vnc_preview, project?.sandbox?.pass]);
+  const memoizedProject = useMemo(() => project, [project]);
 
   useVncPreloader(memoizedProject);
 
@@ -213,7 +208,7 @@ function ThreadPageContent({
   }, []);
 
   const handleNewMessageFromStream = useCallback((message: UnifiedMessage) => {
-    if (!message.message_id) {
+    if (!message.message_id && message.type !== 'status') {
       console.warn(
         `[STREAM HANDLER] Received message is missing ID: Type=${message.type}`,
       );
@@ -252,7 +247,7 @@ function ThreadPageContent({
   }, [setMessages, setAutoOpenedPanel]);
 
   const handleStreamStatusChange = useCallback((hookStatus: string) => {
-    console.log('🌊 [handleStreamStatusChange] Received hookStatus:', hookStatus);
+    debugLog('🌊 [handleStreamStatusChange] Received hookStatus:', hookStatus);
     switch (hookStatus) {
       case 'idle':
       case 'completed':
@@ -260,13 +255,15 @@ function ThreadPageContent({
       case 'agent_not_running':
       case 'error':
       case 'failed':
-        console.log('🌊 [handleStreamStatusChange] Setting agentStatus to IDLE');
+        debugLog('🌊 [handleStreamStatusChange] Setting agentStatus to IDLE');
+        queryClient.invalidateQueries({ queryKey: threadKeys.messages(threadId) });
+        queryClient.invalidateQueries({ queryKey: threadKeys.agentRuns(threadId) });
         setAgentStatus((current) => {
           if (current !== 'idle') {
-            console.log('✅ [handleStreamStatusChange] Changed agentStatus to IDLE');
+            debugLog('✅ [handleStreamStatusChange] Changed agentStatus to IDLE');
             return 'idle';
           }
-          console.log('⏭️ [handleStreamStatusChange] Skipped - already IDLE');
+          debugLog('⏭️ [handleStreamStatusChange] Skipped - already IDLE');
           return current;
         });
         setAgentRunId(null);
@@ -275,37 +272,43 @@ function ThreadPageContent({
         // No scroll needed with flex-column-reverse
         break;
       case 'connecting':
-        console.log('🌊 [handleStreamStatusChange] Setting agentStatus to CONNECTING');
+        debugLog('🌊 [handleStreamStatusChange] Setting agentStatus to CONNECTING');
         setAgentStatus((current) => {
           if (current !== 'connecting') {
-            console.log('✅ [handleStreamStatusChange] Changed agentStatus to CONNECTING');
+            debugLog('✅ [handleStreamStatusChange] Changed agentStatus to CONNECTING');
             return 'connecting';
           }
-          console.log('⏭️ [handleStreamStatusChange] Skipped - already CONNECTING');
+          debugLog('⏭️ [handleStreamStatusChange] Skipped - already CONNECTING');
           return current;
         });
         break;
       case 'streaming':
-        console.log('🌊 [handleStreamStatusChange] Setting agentStatus to RUNNING (streaming)');
+        debugLog('🌊 [handleStreamStatusChange] Setting agentStatus to RUNNING (streaming)');
         setAgentStatus((current) => {
           if (current !== 'running') {
-            console.log('✅ [handleStreamStatusChange] Changed agentStatus to RUNNING');
+            debugLog('✅ [handleStreamStatusChange] Changed agentStatus to RUNNING');
             return 'running';
           }
-          console.log('⏭️ [handleStreamStatusChange] Skipped - already RUNNING');
+          debugLog('⏭️ [handleStreamStatusChange] Skipped - already RUNNING');
           return current;
         });
         break;
     }
-  }, [setAgentStatus, setAgentRunId, setAutoOpenedPanel]);
+  }, [queryClient, setAgentStatus, setAgentRunId, setAutoOpenedPanel, threadId]);
 
   const handleStreamError = useCallback((errorMessage: string) => {
-    console.error(`[PAGE] Stream hook error: ${errorMessage}`);
+    const displayErrorMessage = toDisplayAgentStreamError(errorMessage);
+    if (isProviderAccountStreamError(errorMessage)) {
+      console.warn(`[PAGE] Stream hook provider account error: ${errorMessage}`);
+    } else {
+      console.error(`[PAGE] Stream hook error: ${errorMessage}`);
+    }
     if (
       !errorMessage.toLowerCase().includes('not found') &&
-      !errorMessage.toLowerCase().includes('agent run is not running')
+      !isAgentRunNotRunningError(errorMessage) &&
+      !isRecoverableAgentStreamError(errorMessage)
     ) {
-      toast.error(`Stream Error: ${errorMessage}`);
+      toast.error(`Stream Error: ${displayErrorMessage}`);
     }
   }, []);
 
@@ -334,7 +337,11 @@ function ThreadPageContent({
   const handleSubmitMessage = useCallback(
     async (
       message: string,
-      options?: { model_name?: string; enable_thinking?: boolean },
+      options?: {
+        model_name?: string;
+        model_provider?: 'dashscope' | 'siliconflow';
+        enable_thinking?: boolean;
+      },
     ) => {
       if (!message.trim()) return;
       setIsSending(true);
@@ -379,19 +386,6 @@ function ThreadPageContent({
           const error = results[1].reason;
           console.error("Failed to start agent:", error);
 
-          if (error instanceof BillingError) {
-            setBillingData({
-              currentUsage: error.detail.currentUsage as number | undefined,
-              limit: error.detail.limit as number | undefined,
-              message: error.detail.message || 'Monthly usage limit reached. Please upgrade.',
-              accountId: project?.account_id || null
-            });
-            setShowBillingAlert(true);
-
-            setMessages(prev => prev.filter(m => m.message_id !== optimisticUserMessage.message_id));
-            return;
-          }
-
           if (error instanceof AgentRunLimitError) {
             const { running_thread_ids, running_count } = error.detail;
 
@@ -409,7 +403,7 @@ function ThreadPageContent({
         }
 
         const agentResult = results[1].value;
-        console.log('✅ [handleSubmitMessage] Agent started successfully:', agentResult.agent_run_id);
+        debugLog('✅ [handleSubmitMessage] Agent started successfully:', agentResult.agent_run_id);
         setUserInitiatedRun(true);
         setAgentRunId(agentResult.agent_run_id);
         // 立即设置为 running 状态，因为用户刚刚发起了新的对话
@@ -417,7 +411,7 @@ function ThreadPageContent({
 
       } catch (err) {
         console.error('Error sending message or starting agent:', err);
-        if (!(err instanceof BillingError) && !(err instanceof AgentRunLimitError)) {
+        if (!(err instanceof AgentRunLimitError)) {
           toast.error(err instanceof Error ? err.message : 'Operation failed');
         }
         setMessages((prev) =>
@@ -427,7 +421,7 @@ function ThreadPageContent({
         setIsSending(false);
       }
     },
-    [threadId, project?.account_id, selectedAgentId, addUserMessageMutation, startAgentMutation, setMessages, setBillingData, setShowBillingAlert, setAgentRunId, setAgentStatus],
+    [threadId, selectedAgentId, addUserMessageMutation, startAgentMutation, setMessages, setAgentRunId, setAgentStatus],
   );
 
   const handleStopAgent = useCallback(async () => {
@@ -529,13 +523,13 @@ function ThreadPageContent({
   useEffect(() => {
     // Start streaming if user initiated a run (don't wait for initialLoadCompleted for first-time users)
     if (agentRunId && agentRunId !== currentHookRunId && userInitiatedRun && agentStatus === 'running') {
-      console.log('🚀 [ThreadPage] Starting stream for user-initiated run:', agentRunId);
+      debugLog('🚀 [ThreadPage] Starting stream for user-initiated run:', agentRunId);
       startStreaming(agentRunId);
       setUserInitiatedRun(false); // Reset flag after starting
     }
     // Also start streaming if this is from page load with recent active runs
     else if (agentRunId && agentRunId !== currentHookRunId && initialLoadCompleted && !userInitiatedRun && agentStatus === 'running') {
-      console.log('🚀 [ThreadPage] Starting stream for active run:', agentRunId);
+      debugLog('🚀 [ThreadPage] Starting stream for active run:', agentRunId);
       startStreaming(agentRunId);
     }
   }, [agentRunId, startStreaming, currentHookRunId, initialLoadCompleted, userInitiatedRun, agentStatus]);
@@ -549,7 +543,7 @@ function ThreadPageContent({
       streamHookStatus === 'agent_not_running' || streamHookStatus === 'error') &&
       (agentStatus === 'running' || agentStatus === 'connecting')) {
       
-      console.log('🏁 [ThreadPage] Stream ended, cleaning up state');
+      debugLog('🏁 [ThreadPage] Stream ended, cleaning up state');
       
       // 立即清理状态，但不强制刷新数据（让消息保持在本地状态）
       setAgentStatus('idle');
@@ -596,33 +590,15 @@ function ThreadPageContent({
     setDebugMode(false); // 强制禁用debug模式
   }, [searchParams]);
 
-  const hasCheckedUpgradeDialog = useRef(false);
-
   useEffect(() => {
-    if (initialLoadCompleted && subscriptionData && !hasCheckedUpgradeDialog.current) {
-      hasCheckedUpgradeDialog.current = true;
-      const hasSeenUpgradeDialog = localStorage.getItem('suna_upgrade_dialog_displayed');
-      const isFreeTier = subscriptionStatus === 'no_subscription';
-      if (!hasSeenUpgradeDialog && isFreeTier && !isLocalMode()) {
-        setShowUpgradeDialog(true);
-      }
-    }
-  }, [subscriptionData, subscriptionStatus, initialLoadCompleted]);
-
-  const handleDismissUpgradeDialog = () => {
-    setShowUpgradeDialog(false);
-    localStorage.setItem('suna_upgrade_dialog_displayed', 'true');
-  };
-
-  useEffect(() => {
-    console.log('🌊 [streamingToolCall] useEffect triggered:', {
+    debugLog('🌊 [streamingToolCall] useEffect triggered:', {
       hasStreamingToolCall: !!streamingToolCall,
       toolCall: streamingToolCall,
       timestamp: Date.now()
     });
     
     if (streamingToolCall) {
-      console.log('🔄 [streamingToolCall] Calling handleStreamingToolCall with:', streamingToolCall);
+      debugLog('🔄 [streamingToolCall] Calling handleStreamingToolCall with:', streamingToolCall);
       handleStreamingToolCall(streamingToolCall);
     }
   }, [streamingToolCall, handleStreamingToolCall]);
@@ -815,12 +791,6 @@ function ThreadPageContent({
         </div>
       </ThreadLayout>
 
-      <UpgradeDialog
-        open={showUpgradeDialog}
-        onOpenChange={setShowUpgradeDialog}
-        onDismiss={handleDismissUpgradeDialog}
-      />
-
       {agentLimitData && (
         <AgentRunLimitDialog
           open={showAgentLimitDialog}
@@ -854,3 +824,4 @@ export default function ThreadPage({
   // 参数有效，渲染主要内容
   return <ThreadPageContent projectId={projectId} threadId={threadId} />;
 } 
+

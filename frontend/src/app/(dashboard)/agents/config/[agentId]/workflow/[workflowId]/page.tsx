@@ -343,7 +343,7 @@ export default function WorkflowPage() {
     } catch (error) {
       toast.error(`Failed to ${isEditing ? 'update' : 'create'} workflow`);
     }
-  }, [workflowName, workflowDescription, triggerPhrase, isDefault, steps, agentId, workflowId, isEditing, createWorkflowMutation, updateWorkflowMutation, router]);
+  }, [workflowName, workflowDescription, triggerPhrase, isDefault, steps, agentId, workflowId, isEditing, createWorkflowMutation, updateWorkflowMutation]);
 
   const handleExecute = useCallback(() => {
     const workflow = workflows.find(w => w.id === workflowId);

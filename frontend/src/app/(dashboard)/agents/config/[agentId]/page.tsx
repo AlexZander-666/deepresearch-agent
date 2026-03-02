@@ -163,7 +163,17 @@ export default function AgentConfigurationPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [agent, formData, originalData, isViewingOldVersion, agentId, createVersionMutation, updateAgentMutation, isSaving, queryClient]);
+  }, [
+    agent,
+    formData,
+    isViewingOldVersion,
+    agentId,
+    createVersionMutation,
+    updateAgentMutation,
+    isSaving,
+    originalData.name,
+    originalData.agentpress_tools,
+  ]);
 
   // Check for unsaved changes
   const hasUnsavedChanges = JSON.stringify(formData) !== JSON.stringify(originalData);
@@ -287,7 +297,7 @@ export default function AgentConfigurationPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [isViewingOldVersion, formData, agent, agentId, createVersionMutation, isSaving, originalData]);
+  }, [isViewingOldVersion, formData, agent, agentId, createVersionMutation, isSaving]);
 
   const handleProfileImageSave = useCallback(async (profileImageUrl: string | null) => {
     if (!agent || isViewingOldVersion || isSaving) {
@@ -360,7 +370,7 @@ export default function AgentConfigurationPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [isViewingOldVersion, formData, agent, agentId, createVersionMutation, isSaving, originalData]);
+  }, [isViewingOldVersion, formData, agent, agentId, createVersionMutation, isSaving, originalData.model]);
 
   const handleToolsSave = useCallback(async (tools: Record<string, boolean | { enabled: boolean; description: string }>) => {
     if (!agent || isViewingOldVersion || isSaving) {
@@ -410,7 +420,7 @@ export default function AgentConfigurationPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [isViewingOldVersion, formData, agent, agentId, createVersionMutation, isSaving, originalData]);
+  }, [isViewingOldVersion, formData, agent, agentId, createVersionMutation, isSaving]);
 
   const handleMCPChange = useCallback(async (updates: { configured_mcps: any[]; custom_mcps: any[] }) => {
     if (isViewingOldVersion) {

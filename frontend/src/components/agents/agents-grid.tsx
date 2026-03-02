@@ -99,6 +99,7 @@ const AgentModal: React.FC<AgentModalProps> = ({
                 <KortixLogo size={48} />
               </div>
 ) : agent.profile_image_url ? (
+              // eslint-disable-next-line @next/next/no-img-element -- External profile URLs are dynamic and not constrained to configured Next.js image domains.
               <img src={agent.profile_image_url} alt={agent.name} className="h-16 w-16 rounded-xl object-cover" />
             ) : (
               <div className="h-16 w-16 rounded-xl bg-muted flex items-center justify-center">

@@ -8,9 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-let taskListRenderCount = 0;
-let taskListLastRenderTime = Date.now();
-
 const TaskItem: React.FC<{ task: Task; index: number }> = ({ task, index }) => {
   const isCompleted = task.status === "completed"
   const isCancelled = task.status === "cancelled"
@@ -92,34 +89,8 @@ export const TaskListToolView: React.FC<ToolViewProps> = ({
   isSuccess = true,
   isStreaming = false
 }) => {
-  // 添加渲染追踪
-  taskListRenderCount++;
-  const now = Date.now();
-  const timeSinceLastRender = now - taskListLastRenderTime;
-  taskListLastRenderTime = now;
-  
-  if (taskListRenderCount % 5 === 0 || timeSinceLastRender < 50) {
-    console.log(`📋 [TaskListToolView] 渲染次数: ${taskListRenderCount}, 间隔: ${timeSinceLastRender}ms`);
-  }
-
   const taskData = extractTaskListData(assistantContent, toolContent)
   const toolTitle = getToolTitle(name)
-
-  // Debug logging
-  console.log('📋 [TaskListToolView] Props & Data:', {
-    name,
-    isStreaming,
-    isSuccess,
-    assistantContentType: typeof assistantContent,
-    toolContentType: typeof toolContent,
-    assistantContentPreview: typeof assistantContent === 'string' ? assistantContent.substring(0, 100) : assistantContent,
-    toolContentPreview: typeof toolContent === 'string' ? toolContent.substring(0, 100) : toolContent,
-    taskData: taskData ? {
-      sectionsCount: taskData.sections?.length || 0,
-      totalTasks: taskData.total_tasks,
-      firstSection: taskData.sections?.[0]?.title
-    } : null
-  });
 
   // Process task data
   const sections = taskData?.sections || []
@@ -128,30 +99,6 @@ export const TaskListToolView: React.FC<ToolViewProps> = ({
 
   const completedTasks = allTasks.filter((t) => t.status === "completed").length
   const hasData = sections.length > 0 && allTasks.length > 0
-
-  // Debug processed data
-  console.log('🔄 [TaskListToolView] Processed Data:', {
-    sectionsLength: sections.length,
-    allTasksLength: allTasks.length,
-    totalTasks,
-    completedTasks,
-    hasData,
-    renderCondition: isStreaming ? 'streaming' : hasData ? 'hasData' : 'noData',
-    willShowLoading: isStreaming && !hasData,
-    willShowData: !isStreaming && hasData,
-    willShowEmpty: !isStreaming && !hasData
-  });
-  
-  // 🚨 特别关注：在继续对话时的状态
-  if (name?.includes('create') || name?.includes('task')) {
-    console.log('🎯 [TaskListToolView] Task creation tool detected:', {
-      isStreaming,
-      hasData,
-      willShowLoadingState: isStreaming && !hasData,
-      toolContent: toolContent ? 'present' : 'absent',
-      assistantContent: assistantContent ? 'present' : 'absent'
-    });
-  }
 
   return (
     <Card className="gap-0 flex border shadow-none border-t border-b-0 border-x-0 p-0 rounded-none flex-col h-full overflow-hidden bg-card">

@@ -8,6 +8,12 @@ import {
 } from '@/lib/api';
 import { toast } from 'sonner';
 import {
+  isAgentRunNotRunningError,
+  isProviderAccountStreamError,
+  isRecoverableAgentStreamError,
+  toDisplayAgentStreamError,
+} from './agent-stream-error-utils';
+import {
   UnifiedMessage,
   ParsedContent,
   ParsedMetadata,
@@ -71,6 +77,52 @@ const mapApiMessagesToUnified = (
       agent_id: (msg as any).agent_id,
       agents: (msg as any).agents,
     }));
+};
+
+const normalizeToolArguments = (value: unknown): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const extractToolCallFromStatus = (parsedContent: ParsedContent) => {
+  const chunk = parsedContent.tool_call_chunk;
+  const chunkFunction = chunk?.function ?? {};
+
+  const name =
+    chunkFunction?.name ||
+    parsedContent.function_name ||
+    parsedContent.xml_tag_name;
+  if (!name) {
+    return null;
+  }
+
+  const toolCallId = chunk?.id || parsedContent.tool_call_id || parsedContent.id;
+  const toolIndex =
+    typeof chunk?.index === 'number' ? chunk.index : parsedContent.tool_index;
+  const rawArguments =
+    chunkFunction?.arguments ??
+    parsedContent.arguments ??
+    parsedContent.tool_args ??
+    parsedContent.parameters;
+
+  return {
+    role: 'assistant' as const,
+    status_type: 'tool_started' as const,
+    id: toolCallId,
+    name,
+    arguments: normalizeToolArguments(rawArguments),
+    xml_tag_name: parsedContent.xml_tag_name,
+    tool_index: toolIndex,
+  };
 };
 
 export function useAgentStream(
@@ -250,11 +302,27 @@ export function useAgentStream(
       try {
         const jsonData = JSON.parse(processedData);
         if (jsonData.status === 'error') {
-          console.error('[useAgentStream] Received error status message:', jsonData);
-          const errorMessage = jsonData.message || 'Unknown error occurred';
-          setError(errorMessage);
-          toast.error(errorMessage, { duration: 15000 });
-          callbacks.onError?.(errorMessage);
+          const rawErrorMessage = jsonData.message || 'Unknown error occurred';
+          const displayErrorMessage = toDisplayAgentStreamError(rawErrorMessage);
+          const shouldWarnOnly = isProviderAccountStreamError(rawErrorMessage);
+          if (shouldWarnOnly) {
+            console.warn(
+              '[useAgentStream] Received provider account error status message:',
+              jsonData,
+            );
+          } else {
+            console.error(
+              '[useAgentStream] Received error status message:',
+              jsonData,
+            );
+          }
+
+          setError(displayErrorMessage);
+          if (callbacks.onError) {
+            callbacks.onError(rawErrorMessage);
+          } else {
+            toast.error(displayErrorMessage, { duration: 15000 });
+          }
           return;
         }
       } catch (jsonError) {
@@ -335,21 +403,31 @@ export function useAgentStream(
               // 避免显示包含重复内容的 streaming chunks
               console.log('🔄 [useAgentStream] Tool call detected, clearing streaming text immediately');
               setTextContent([]);
+              {
+                const parsedToolCall = extractToolCallFromStatus(parsedContent);
+                if (parsedToolCall) {
+                  setToolCall(parsedToolCall);
+                }
+              }
               break;
             case 'tool_started':
-              setToolCall({
-                role: 'assistant',
-                status_type: 'tool_started',
-                name: parsedContent.function_name,
-                arguments: parsedContent.arguments,
-                xml_tag_name: parsedContent.xml_tag_name,
-                tool_index: parsedContent.tool_index,
-              });
+              {
+                const parsedToolCall = extractToolCallFromStatus(parsedContent);
+                if (parsedToolCall) {
+                  setToolCall(parsedToolCall);
+                }
+              }
               break;
             case 'tool_completed':
             case 'tool_failed':
             case 'tool_error':
-              if (toolCall?.tool_index === parsedContent.tool_index) {
+              if (
+                (toolCall?.tool_index !== undefined &&
+                  toolCall?.tool_index === parsedContent.tool_index) ||
+                (toolCall?.id &&
+                  parsedContent.tool_call_id &&
+                  toolCall.id === parsedContent.tool_call_id)
+              ) {
                 setToolCall(null);
               }
               break;
@@ -360,13 +438,27 @@ export function useAgentStream(
               // Don't finalize here, wait for thread_run_end or completion message
               break;
             case 'error':
-              setError(parsedContent.message || 'Agent run failed');
-              finalizeStream('error', currentRunIdRef.current);
+              {
+                const statusErrorMessage =
+                  parsedContent.message || 'Agent run failed';
+                if (isRecoverableAgentStreamError(statusErrorMessage)) {
+                  console.warn(
+                    '[useAgentStream] Ignoring recoverable stream status error and keeping stream open:',
+                    statusErrorMessage,
+                  );
+                  break;
+                }
+                setError(statusErrorMessage);
+                finalizeStream('error', currentRunIdRef.current);
+              }
               break;
             // Ignore thread_run_start, assistant_response_start etc. for now
             default:
               // console.debug('[useAgentStream] Received unhandled status type:', parsedContent.status_type);
               break;
+          }
+          if (message.message_id) {
+            callbacks.onMessage(message);
           }
           break;
         case 'user':
@@ -381,15 +473,7 @@ export function useAgentStream(
           );
       }
     },
-    [
-      threadId,
-      setMessages,
-      status,
-      toolCall,
-      callbacks,
-      finalizeStream,
-      updateStatus,
-    ],
+    [status, toolCall, callbacks, finalizeStream, updateStatus],
   );
 
   const handleStreamError = useCallback(
@@ -407,11 +491,37 @@ export function useAgentStream(
         errorMessage = 'Stream connection error';
       }
 
-      console.error('[useAgentStream] Streaming error:', errorMessage, err);
-      setError(errorMessage);
-      
-      // Show error toast with longer duration
-      toast.error(errorMessage, { duration: 15000 });
+      if (isAgentRunNotRunningError(errorMessage)) {
+        console.warn(
+          '[useAgentStream] Ignoring not-running stream error for terminal agent run.',
+        );
+        finalizeStream('agent_not_running', currentRunIdRef.current);
+        return;
+      }
+
+      if (isRecoverableAgentStreamError(errorMessage)) {
+        console.warn(
+          '[useAgentStream] Recoverable stream transport error detected, waiting for backend retry:',
+          errorMessage,
+        );
+        return;
+      }
+
+      const displayErrorMessage = toDisplayAgentStreamError(errorMessage);
+      if (isProviderAccountStreamError(errorMessage)) {
+        console.warn(
+          '[useAgentStream] Provider account stream error:',
+          errorMessage,
+        );
+      } else {
+        console.error('[useAgentStream] Streaming error:', errorMessage, err);
+      }
+      setError(displayErrorMessage);
+      if (callbacks.onError) {
+        callbacks.onError(errorMessage);
+      } else {
+        toast.error(displayErrorMessage, { duration: 15000 });
+      }
 
       const runId = currentRunIdRef.current;
       if (!runId) {
@@ -423,7 +533,7 @@ export function useAgentStream(
       }
 
     },
-    [finalizeStream],
+    [callbacks, finalizeStream],
   );
 
   const handleStreamClose = useCallback(() => {
@@ -431,18 +541,9 @@ export function useAgentStream(
 
     const runId = currentRunIdRef.current;
     if (!runId) {
-      console.warn('[useAgentStream] Stream closed but no active agentRunId.');
-      // If status was streaming, something went wrong, finalize as error
       if (status === 'streaming' || status === 'connecting') {
+        console.warn('[useAgentStream] Stream closed while still streaming but no active agentRunId.');
         finalizeStream('error');
-      } else if (
-        status !== 'idle' &&
-        status !== 'completed' &&
-        status !== 'stopped' &&
-        status !== 'agent_not_running'
-      ) {
-        // If in some other state, just go back to idle if no runId
-        finalizeStream('idle');
       }
       return;
     }
@@ -476,8 +577,9 @@ export function useAgentStream(
           errorMessage.includes('not found') ||
           errorMessage.includes('404') ||
           errorMessage.includes('does not exist');
+        const isNotRunningError = isAgentRunNotRunningError(errorMessage);
 
-        if (isNotFoundError) {
+        if (isNotFoundError || isNotRunningError) {
           // Revert to agent_not_running for this specific case
           finalizeStream('agent_not_running', runId);
         } else {
@@ -530,7 +632,6 @@ export function useAgentStream(
           console.warn(
             `[useAgentStream] Agent run ${runId} is not in running state (status: ${agentStatus.status}). Cannot start stream.`,
           );
-          setError(`Agent run is not running (status: ${agentStatus.status})`);
           finalizeStream(
             mapAgentStatus(agentStatus.status) || 'agent_not_running',
             runId,
@@ -579,17 +680,25 @@ export function useAgentStream(
         console.error(
           `[useAgentStream] Error initiating stream for ${runId}: ${errorMessage}`,
         );
-        setError(errorMessage);
 
         const isNotFoundError =
           errorMessage.includes('not found') ||
           errorMessage.includes('404') ||
           errorMessage.includes('does not exist');
+        const isNotRunningError = isAgentRunNotRunningError(errorMessage);
 
-        finalizeStream(isNotFoundError ? 'agent_not_running' : 'error', runId);
+        if (!isNotRunningError) {
+          setError(errorMessage);
+        }
+
+        finalizeStream(
+          isNotFoundError || isNotRunningError ? 'agent_not_running' : 'error',
+          runId,
+        );
       }
     },
     [
+      threadId,
       updateStatus,
       finalizeStream,
       handleStreamMessage,

@@ -22,6 +22,18 @@ from services import redis
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_FLAGS: Dict[str, bool] = {
+    "AlexManus_default_agent": True,
+    "custom_agents": True,
+    "mcp_module": False,
+    "templates_api": False,
+    "triggers_api": False,
+    "workflows_api": False,
+    "knowledge_base": False,
+    "pipedream": False,
+    "credentials_api": False,
+}
+
 class FeatureFlagManager:
     def __init__(self):
         """Initialize with existing Redis service"""
@@ -57,8 +69,11 @@ class FeatureFlagManager:
             redis_client = await redis.get_client()
             
             enabled = await redis_client.hget(flag_key, 'enabled')
-            
-            result = enabled == 'true' if enabled else False
+
+            if enabled is None:
+                return DEFAULT_FLAGS.get(key, False)
+
+            result = enabled == 'true'
             return result
             
         except Exception as e:
@@ -66,8 +81,8 @@ class FeatureFlagManager:
             logger.error(f"❌ [FLAGS] Exception type: {type(e)}")
             import traceback
             logger.error(f"❌ [FLAGS] Traceback: {traceback.format_exc()}")
-            # Return False by default if Redis is unavailable
-            return False
+            # Redis 不可用时回退到内置默认值，避免前端误判功能关闭
+            return DEFAULT_FLAGS.get(key, False)
     
     async def get_flag(self, key: str) -> Optional[Dict[str, str]]:
         """Get feature flag details"""
@@ -100,7 +115,7 @@ class FeatureFlagManager:
         try:
             redis_client = await redis.get_client()
             flag_keys = await redis_client.smembers(self.flag_list_key)
-            flags = {}
+            flags = DEFAULT_FLAGS.copy()
             
             for key in flag_keys:
                 flags[key] = await self.is_enabled(key)
@@ -170,8 +185,8 @@ async def get_flag_details(key: str) -> Optional[Dict[str, str]]:
 
 # Feature Flags
 
-# Fufanmanus default agent feature flag
-fufanmanus_default_agent = True
+# AlexManus default agent feature flag
+AlexManus_default_agent = True
 
 # Custom agents feature flag
 custom_agents = True
@@ -196,8 +211,6 @@ pipedream = False
 
 # Credentials API feature flag
 credentials_api = False
-
-
 
 
 
